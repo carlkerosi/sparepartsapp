@@ -1,0 +1,6 @@
+{
+  "name": "PartPulse - Spare Parts Inventory & Sales Ledger",
+  "description": "Real-time spare parts inventory management, FOB & landed cost tracking, retail pricing, and sales records ledger.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,316 @@
+{
+  "entities": {
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Vendor and manufacturer contact information, commercial terms, and fulfillment details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for supplier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Company or vendor trade name",
+          "maxLength": 150
+        },
+        "code": {
+          "type": "string",
+          "description": "Short vendor code / SKU prefix",
+          "maxLength": 30
+        },
+        "contactPerson": {
+          "type": "string",
+          "description": "Primary sales account representative",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Supplier orders and correspondence email",
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number",
+          "maxLength": 50
+        },
+        "website": {
+          "type": "string",
+          "description": "Supplier website URL",
+          "maxLength": 200
+        },
+        "physicalAddress": {
+          "type": "string",
+          "description": "Factory or warehouse location",
+          "maxLength": 250
+        },
+        "country": {
+          "type": "string",
+          "description": "Origin country for import/freight",
+          "maxLength": 80
+        },
+        "paymentTerms": {
+          "type": "string",
+          "description": "Payment agreement terms (e.g. Net 30, LC, Wire)",
+          "maxLength": 60
+        },
+        "currency": {
+          "type": "string",
+          "description": "Commercial currency for procurement (USD, EUR, JPY)",
+          "maxLength": 10
+        },
+        "leadTimeDays": {
+          "type": "number",
+          "description": "Standard freight fulfillment lead time in days"
+        },
+        "shippingTerms": {
+          "type": "string",
+          "description": "Incoterms (e.g. FOB Yokohama, CIF, EXW)",
+          "maxLength": 60
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal procurement and contract notes",
+          "maxLength": 1000
+        },
+        "rating": {
+          "type": "number",
+          "description": "Vendor reliability rating from 1 to 5"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ACTIVE", "INACTIVE", "UNDER_REVIEW"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update"
+        }
+      },
+      "required": ["name", "code", "paymentTerms", "status"]
+    },
+    "SparePart": {
+      "title": "SparePart",
+      "description": "Automotive spare part catalog record with pricing, stock levels, and linked primary supplier",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for part"
+        },
+        "partNumber": {
+          "type": "string",
+          "description": "SKU / Part Number",
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "description": "Part specification title",
+          "maxLength": 250
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "unitCostFobUsd": {
+          "type": "number",
+          "description": "FOB cost in USD"
+        },
+        "unitCostLanded": {
+          "type": "number",
+          "description": "Landed cost factoring freight and customs"
+        },
+        "retailPriceEx": {
+          "type": "number",
+          "description": "Retail price excluding tax"
+        },
+        "retailPriceInc": {
+          "type": "number",
+          "description": "Retail price including tax"
+        },
+        "stockQuantity": {
+          "type": "number",
+          "description": "Real-time stock on hand"
+        },
+        "minStockLevel": {
+          "type": "number",
+          "description": "Reorder threshold"
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "oemReference": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "vehicleCompatibility": {
+          "type": "string",
+          "maxLength": 250
+        },
+        "supplierId": {
+          "type": "string",
+          "description": "Foreign key reference to primary supplier",
+          "maxLength": 128
+        },
+        "supplier": {
+          "type": "string",
+          "description": "Primary supplier company name",
+          "maxLength": 150
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Product visual image URL or data asset",
+          "maxLength": 2500000
+        },
+        "lastUpdated": {
+          "type": "string"
+        }
+      },
+      "required": ["partNumber", "description", "unitCostFobUsd", "unitCostLanded", "retailPriceEx", "retailPriceInc", "stockQuantity"]
+    },
+    "SaleRecord": {
+      "title": "SaleRecord",
+      "description": "Sales invoice transaction ledger record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "invoiceNumber": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "customerName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "customerPhone": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "deliveryAddress": {
+          "type": "string",
+          "maxLength": 250
+        },
+        "mpesaReceiptNumber": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "vehicleRef": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "totalUnits": {
+          "type": "number"
+        },
+        "subtotalEx": {
+          "type": "number"
+        },
+        "taxAmount": {
+          "type": "number"
+        },
+        "totalInc": {
+          "type": "number"
+        },
+        "totalCogsLanded": {
+          "type": "number"
+        },
+        "totalGrossProfit": {
+          "type": "number"
+        },
+        "marginPercent": {
+          "type": "number"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "salesPerson": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "required": ["invoiceNumber", "customerName", "subtotalEx", "totalInc", "paymentMethod"]
+    },
+    "StockMovement": {
+      "title": "StockMovement",
+      "description": "Immutable stock transaction movement audit log",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "partId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "partNumber": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 250
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "quantityDelta": {
+          "type": "number"
+        },
+        "previousStock": {
+          "type": "number"
+        },
+        "newStock": {
+          "type": "number"
+        },
+        "referenceDoc": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "user": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": ["partId", "partNumber", "type", "quantityDelta", "previousStock", "newStock"]
+    }
+  },
+  "firestore": {
+    "/suppliers/{supplierId}": {
+      "schema": "Supplier",
+      "description": "Vendor contact directory, commercial payment terms, and lead times"
+    },
+    "/parts/{partId}": {
+      "schema": "SparePart",
+      "description": "Inventory spare parts catalog linked to primary suppliers"
+    },
+    "/sales/{saleId}": {
+      "schema": "SaleRecord",
+      "description": "Sales ledger invoices and profit records"
+    },
+    "/movements/{movementId}": {
+      "schema": "StockMovement",
+      "description": "Real-time stock movements and audit ledger"
+    }
+  }
+}
