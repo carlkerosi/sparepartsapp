@@ -282,7 +282,7 @@ export const PartModal: React.FC<PartModalProps> = ({
                 type="text"
                 value={oemReference}
                 onChange={(e) => setOemReference(e.target.value)}
-                placeholder="e.g. 04465-0K240 / 04465-35290"
+                placeholder="e.g. LR033302 / LR020362 / 09.C881.11"
                 className="w-full text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
               />
             </div>
@@ -295,7 +295,7 @@ export const PartModal: React.FC<PartModalProps> = ({
                 type="text"
                 value={vehicleCompatibility}
                 onChange={(e) => setVehicleCompatibility(e.target.value)}
-                placeholder="e.g. Toyota Hilux Vigo 2.8D, Fortuner 2015-2023"
+                placeholder="e.g. Range Rover Sport L494 (3.0 V6 / 4.4 SDV8), Vogue L405"
                 className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
               />
             </div>
@@ -344,28 +344,28 @@ export const PartModal: React.FC<PartModalProps> = ({
 
                 {/* Quick Presets */}
                 <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                  <span className="shrink-0 font-medium">Quick Presets:</span>
+                  <span className="shrink-0 font-medium">Range Rover Presets:</span>
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
                       onClick={() => setImageUrl('/src/assets/images/part_ceramic_brake_pads_1792926667949.jpg')}
                       className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
                     >
-                      Brake Pads
+                      Brake Discs & Pads
                     </button>
                     <button
                       type="button"
                       onClick={() => setImageUrl('/src/assets/images/part_spin_oil_filter_1792926668402.jpg')}
                       className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
                     >
-                      Oil Filter
+                      Filters & Trans Pan
                     </button>
                     <button
                       type="button"
-                      onClick={() => setImageUrl('/src/assets/images/part_heavy_alternator_1792926668642.jpg')}
+                      onClick={() => setImageUrl('/src/assets/images/range_rover_air_suspension_1792927570074.jpg')}
                       className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
                     >
-                      Alternator
+                      Water Pump & Tank
                     </button>
                   </div>
                 </div>

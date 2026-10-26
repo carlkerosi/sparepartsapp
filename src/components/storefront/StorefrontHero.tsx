@@ -10,32 +10,41 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
   onSearchVehicle,
   onExploreCatalog,
 }) => {
-  const [selectedMake, setSelectedMake] = useState('Land Rover / Range Rover');
+  const [selectedSeries, setSelectedSeries] = useState('Range Rover Vogue');
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
 
-  const VEHICLE_MAKES: Record<string, string[]> = {
-    'Land Rover / Range Rover': [
-      'Range Rover Vogue (L405 / L322)',
-      'Range Rover Sport (L494 / L320)',
-      'Range Rover Velar (L560)',
-      'Range Rover Evoque (L538 / L551)',
-      'Defender 110 / 90 (L663 / Puma)',
-      'Discovery 4 & Discovery 5',
+  const RANGE_ROVER_MODELS: Record<string, string[]> = {
+    'Range Rover Vogue': [
+      'Vogue L405 (2013-2022) 3.0 TDV6 / 4.4 SDV8',
+      'Vogue L405 (2013-2022) 5.0 V8 Supercharged',
+      'Vogue L322 (2002-2012) 3.6 / 4.4 TDV8',
+      'New Range Rover L460 (2022+)',
     ],
-    Toyota: [
-      'Land Cruiser Prado (1KD/1GD)',
-      'Land Cruiser 200 / 300 V8',
-      'Land Cruiser 70 / 79 Series',
-      'Hilux Vigo / Revo',
+    'Range Rover Sport': [
+      'Sport L494 (2014-2022) 3.0 V6 Supercharged',
+      'Sport L494 (2014-2022) 3.0 SDV6 / 4.4 SDV8',
+      'Sport L494 5.0 SVR / V8 SC',
+      'Sport L320 (2005-2013) 3.0 TDV6 / 5.0 V8',
+      'New Range Rover Sport L461 (2022+)',
     ],
-    'Mercedes-Benz': ['G-Class G63 / G350', 'GLE / ML-Class', 'GLS 4MATIC'],
-    Porsche: ['Cayenne Turbo / S', 'Macan GTS'],
+    'Range Rover Velar': [
+      'Velar L560 (2017+) 2.0 Si4 / P250 / P300',
+      'Velar L560 (2017+) 3.0 D300 / P380 V6',
+    ],
+    'Range Rover Evoque': [
+      'Evoque L538 (2011-2018) 2.0 Si4 / 2.2 SD4',
+      'Evoque L551 (2019+) 2.0 D200 / P250',
+    ],
+    'Discovery & Defender': [
+      'Defender L663 (2020+) D250 / P300 / P400',
+      'Discovery 4 & 5 (3.0 TDV6 / SDV6)',
+    ],
   };
 
   const handleFitmentSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const queryParts = [selectedMake === 'Land Rover / Range Rover' ? 'Range Rover' : selectedMake, selectedModel, selectedYear].filter(Boolean);
+    const queryParts = ['Range Rover', selectedSeries, selectedModel, selectedYear].filter(Boolean);
     const query = queryParts.join(' ');
     onSearchVehicle(query);
   };
@@ -58,7 +67,7 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
           {/* Left Column: Editorial Headline & Value Prop */}
           <div className="lg:col-span-7 space-y-4">
             <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
-              <span className="text-emerald-400 font-semibold">Nairobi & All 47 Counties</span>
+              <span className="text-emerald-400 font-semibold">Nairobi & Major Transit Hubs</span>
               <span aria-hidden="true">·</span>
               <span>Range Rover Specialist</span>
               <span aria-hidden="true">·</span>
@@ -68,12 +77,12 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
-              Range Rover & Land Rover OEM Spares. <br className="hidden sm:inline" />
-              In Stock in Kenya.
+              Range Rover OEM Spares Kenya. <br className="hidden sm:inline" />
+              In Stock in Nairobi.
             </h1>
 
             <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed">
-              Direct supplier-backed spares for Range Rover Vogue L405, Sport L494, Velar, Evoque & Defender. Genuine air suspensions, Brembo 380mm rotors, ZF 8-Speed kits, and cooling components with authentic KSh landed cost transparency.
+              Specialist importer for Range Rover Vogue, Sport, Velar & Evoque. Direct stock of Brembo front & rear brake discs, ceramic brake pads, wear sensors, parking brake shoes, aluminum water pumps, expansion tanks, ZF 8-Speed transmission pans, oil coolers, and OEM filtration.
             </p>
 
             {/* Quick Action Link */}
@@ -96,8 +105,8 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-6 text-slate-900 bg-white shadow-xl">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900">Vehicle Fitment Selector</h2>
-                  <p className="text-[11px] text-slate-500">Find guaranteed compatible parts for your vehicle</p>
+                  <h2 className="text-sm font-bold text-slate-900">Range Rover Fitment Selector</h2>
+                  <p className="text-[11px] text-slate-500">Find guaranteed compatible parts for your chassis</p>
                 </div>
                 <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-700">
                   <Search className="w-4 h-4" />
@@ -105,22 +114,22 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
               </div>
 
               <form onSubmit={handleFitmentSearch} className="space-y-3">
-                {/* Make Select */}
+                {/* Series Select */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    1. Select Vehicle Make
+                    1. Select Range Rover Series
                   </label>
                   <select
-                    value={selectedMake}
+                    value={selectedSeries}
                     onChange={(e) => {
-                      setSelectedMake(e.target.value);
+                      setSelectedSeries(e.target.value);
                       setSelectedModel('');
                     }}
                     className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer font-medium text-slate-900"
                   >
-                    {Object.keys(VEHICLE_MAKES).map((make) => (
-                      <option key={make} value={make}>
-                        {make}
+                    {Object.keys(RANGE_ROVER_MODELS).map((series) => (
+                      <option key={series} value={series}>
+                        {series}
                       </option>
                     ))}
                   </select>
@@ -129,15 +138,15 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
                 {/* Model Select */}
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    2. Select Model / Chassis
+                    2. Select Model / Chassis Engine
                   </label>
                   <select
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer font-medium text-slate-900"
                   >
-                    <option value="">-- All {selectedMake} Models --</option>
-                    {(VEHICLE_MAKES[selectedMake] || []).map((mod) => (
+                    <option value="">-- All {selectedSeries} Variants --</option>
+                    {(RANGE_ROVER_MODELS[selectedSeries] || []).map((mod) => (
                       <option key={mod} value={mod}>
                         {mod}
                       </option>
@@ -197,7 +206,7 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
             </div>
             <div>
               <div className="text-xs font-semibold text-white">Same-Day Dispatch & Pickup</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Nairobi delivery in 2-4 hours; next-day courier across all 47 counties.</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Nairobi delivery in 2-4 hours; express dispatch to major Kenyan transit hubs.</div>
             </div>
           </div>
 

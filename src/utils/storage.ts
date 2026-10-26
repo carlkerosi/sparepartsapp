@@ -2,11 +2,11 @@ import { SparePart, SaleRecord, StockMovement, InventorySettings, Supplier } fro
 import { INITIAL_PARTS, INITIAL_SALES, INITIAL_MOVEMENTS, DEFAULT_SETTINGS, INITIAL_SUPPLIERS } from '../data/initialData';
 
 const STORAGE_KEYS = {
-  SUPPLIERS: 'partpulse_suppliers_v2',
-  PARTS: 'partpulse_parts_v2',
-  SALES: 'partpulse_sales_v2',
-  MOVEMENTS: 'partpulse_movements_v2',
-  SETTINGS: 'partpulse_settings_v2',
+  SUPPLIERS: 'partpulse_suppliers_v4',
+  PARTS: 'partpulse_parts_v4',
+  SALES: 'partpulse_sales_v4',
+  MOVEMENTS: 'partpulse_movements_v4',
+  SETTINGS: 'partpulse_settings_v4',
 };
 
 export function loadSuppliers(): Supplier[] {
@@ -39,7 +39,8 @@ export function loadParts(): SparePart[] {
       return INITIAL_PARTS;
     }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed) || !parsed.some((p: SparePart) => p.id?.startsWith('part-rr-'))) {
+    const hasStrictRangeRoverCatalog = parsed.some((p: SparePart) => p.id === 'part-rr-brk-disc-f');
+    if (!Array.isArray(parsed) || !hasStrictRangeRoverCatalog) {
       saveParts(INITIAL_PARTS);
       return INITIAL_PARTS;
     }

@@ -1,8 +1,12 @@
 import { SparePart, SaleRecord } from '../types/inventory';
 
 export function formatCurrency(amount: number, symbol = 'KSh'): string {
-  if (isNaN(amount) || amount === null || amount === undefined) return `${symbol} 0.00`;
-  const formatted = amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (isNaN(amount) || amount === null || amount === undefined) return `${symbol} 0`;
+  const hasDecimals = Math.abs(amount % 1) >= 0.01;
+  const formatted = amount.toLocaleString('en-US', {
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
   if (symbol === '$' || symbol === '£' || symbol === '€') {
     return `${symbol}${formatted}`;
   }

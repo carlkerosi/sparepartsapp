@@ -92,9 +92,9 @@ export function subscribeParts(
         items.push({ ...(d.data() as SparePart), id: d.id });
       });
 
-      // If Firestore contains outdated data without Range Rover catalog, sync latest initial parts
-      const hasRangeRover = items.some((p) => p.id?.startsWith('part-rr-'));
-      if (!hasRangeRover && INITIAL_PARTS.length > 0) {
+      // If Firestore contains outdated data without the Range Rover specific parts catalog, sync initial parts
+      const hasSpecificCatalog = items.some((p) => p.id === 'part-rr-brk-disc-f');
+      if (!hasSpecificCatalog && INITIAL_PARTS.length > 0) {
         try {
           const batch = writeBatch(db);
           for (const p of INITIAL_PARTS) {
@@ -102,7 +102,7 @@ export function subscribeParts(
           }
           await batch.commit();
         } catch (e) {
-          console.warn('Range Rover parts seeding to Firestore failed:', e);
+          console.warn('Range Rover specific parts sync to Firestore failed:', e);
         }
         onUpdate(INITIAL_PARTS);
         return;

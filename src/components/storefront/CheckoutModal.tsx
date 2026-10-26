@@ -338,7 +338,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">Checkout & Kenyan Dispatch</h3>
-                  <p className="text-[11px] text-slate-500">Nairobi delivery in 2-4 hours; express courier across Kenya</p>
+                  <p className="text-[11px] text-slate-500">Nairobi delivery in 2-4 hours or workshop pickup in Industrial Area</p>
                 </div>
               </div>
               <button

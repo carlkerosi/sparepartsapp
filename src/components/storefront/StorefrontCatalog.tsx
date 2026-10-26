@@ -74,12 +74,9 @@ export const StorefrontCatalog: React.FC<StorefrontCatalogProps> = ({
   const CATEGORIES = [
     'ALL',
     'Braking',
-    'Filtration',
-    'Electrical',
-    'Suspension',
-    'Engine',
-    'Transmission',
     'Cooling',
+    'Transmission',
+    'Filtration',
   ];
 
   return (

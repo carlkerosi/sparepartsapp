@@ -79,7 +79,7 @@ export default function App() {
   const [storefrontSearch, setStorefrontSearch] = useState<string>('');
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('partpulse_cart_v2');
+      const saved = localStorage.getItem('partpulse_cart_v4');
       if (!saved) return [];
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) return [];
@@ -195,7 +195,7 @@ export default function App() {
   // Persist customer cart
   useEffect(() => {
     try {
-      localStorage.setItem('partpulse_cart_v2', JSON.stringify(cartItems));
+      localStorage.setItem('partpulse_cart_v4', JSON.stringify(cartItems));
     } catch (e) {
       console.warn('Could not persist cart:', e);
     }

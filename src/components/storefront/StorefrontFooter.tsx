@@ -24,7 +24,7 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
               <span className="text-white font-bold tracking-tight text-sm">PartPulse Spares</span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Premier automotive spare parts distributor in Nairobi, Kenya. Supplying genuine OEM brake components, filters, suspension, and rotating electrical parts for fleets and individual vehicles.
+              Premier Range Rover spare parts specialist in Nairobi, Kenya. Sourcing genuine Brembo brake discs & pads, wear sensors, parking brake shoes, aluminum water pumps, expansion tanks, ZF transmission pans, oil coolers, and OEM filters.
             </p>
           </div>
 

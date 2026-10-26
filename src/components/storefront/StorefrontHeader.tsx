@@ -28,19 +28,16 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
   const CATEGORIES = [
     'ALL',
     'Braking',
-    'Filtration',
-    'Electrical',
-    'Suspension',
-    'Engine',
-    'Transmission',
     'Cooling',
+    'Transmission',
+    'Filtration',
   ];
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       {/* Top Banner Notice */}
       <div className="bg-slate-900 text-slate-300 px-4 py-1.5 text-[11px] text-center font-medium">
-        <span>Genuine OEM & Tier-1 Aftermarket Automotive Spares · Kenya Countrywide Delivery · All Prices 16% VAT Inclusive</span>
+        <span>Range Rover Genuine & OEM Spares · Nairobi Hub & Express Dispatch · All Prices 16% VAT Inclusive</span>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
