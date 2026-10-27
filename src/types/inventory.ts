@@ -103,6 +103,10 @@ export interface InventorySettings {
   businessAddress: string;
   businessPhone: string;
   businessTaxId: string;
+  businessRegNumber?: string; // Kenyan Company Reg No (e.g. PVT-EYU7821 / CPR/2021/849204)
+  mpesaPaybillNumber?: string; // Lipa na M-Pesa Business No. (Paybill)
+  mpesaTillNumber?: string; // Lipa na M-Pesa Buy Goods Till No.
+  businessEmail?: string;
   adminAccessCode?: string; // Default '1234'
 }
 

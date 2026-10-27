@@ -137,27 +137,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Contact Phone
+                Contact Phone / WhatsApp
               </label>
               <input
                 type="text"
                 value={form.businessPhone}
                 onChange={(e) => setForm({ ...form, businessPhone: e.target.value })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
               />
             </div>
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Tax PIN / Registration #
+                KRA Tax PIN (e-TIMS)
               </label>
               <input
                 type="text"
                 value={form.businessTaxId}
                 onChange={(e) => setForm({ ...form, businessTaxId: e.target.value })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                BRS Company Reg #
+              </label>
+              <input
+                type="text"
+                value={form.businessRegNumber || ''}
+                onChange={(e) => setForm({ ...form, businessRegNumber: e.target.value })}
+                placeholder="e.g. PVT-EYU7821 / CPR/2021/849204"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                M-Pesa Paybill No.
+              </label>
+              <input
+                type="text"
+                value={form.mpesaPaybillNumber || ''}
+                onChange={(e) => setForm({ ...form, mpesaPaybillNumber: e.target.value })}
+                placeholder="e.g. 849204"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                M-Pesa Buy Goods Till
+              </label>
+              <input
+                type="text"
+                value={form.mpesaTillNumber || ''}
+                onChange={(e) => setForm({ ...form, mpesaTillNumber: e.target.value })}
+                placeholder="e.g. 948201"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 mb-1">
+              Official Company Email
+            </label>
+            <input
+              type="email"
+              value={form.businessEmail || ''}
+              onChange={(e) => setForm({ ...form, businessEmail: e.target.value })}
+              placeholder="orders@apexspares.co.ke"
+              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+            />
           </div>
 
           <div>

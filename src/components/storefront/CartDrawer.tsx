@@ -163,16 +163,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             <div className="p-6 bg-slate-50 border-t border-slate-200 space-y-3">
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-500 font-mono">
-                  <span>Goods Subtotal (Ex-VAT)</span>
-                  <span className="tabular-nums">{formatCurrency(totalEx, currencySymbol)}</span>
+                  <span>Selected Items</span>
+                  <span className="font-semibold text-slate-800">{items.reduce((sum, item) => sum + item.quantity, 0)} units</span>
                 </div>
-                <div className="flex justify-between text-slate-500 font-mono">
-                  <span>16% VAT Tax Portion</span>
-                  <span className="tabular-nums">{formatCurrency(vatAmount, currencySymbol)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200 font-mono">
-                  <span>Order Grand Total (Inc-VAT)</span>
-                  <span className="tabular-nums text-base">{formatCurrency(totalInc, currencySymbol)}</span>
+                <div className="flex justify-between text-base font-bold text-slate-900 pt-2 border-t border-slate-200 font-mono">
+                  <span>Total Payable</span>
+                  <span className="tabular-nums text-lg font-black">{formatCurrency(totalInc, currencySymbol)}</span>
                 </div>
               </div>
 

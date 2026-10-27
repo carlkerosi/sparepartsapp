@@ -37,7 +37,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       {/* Top Banner Notice */}
       <div className="bg-slate-900 text-slate-300 px-4 py-1.5 text-[11px] text-center font-medium">
-        <span>Range Rover Genuine & OEM Spares · Nairobi Hub & Express Dispatch · All Prices 16% VAT Inclusive</span>
+        <span>Range Rover Genuine & OEM Spares · Nairobi Hub & Express Dispatch · Landed Costing in KSh</span>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,18 +46,18 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
           <div className="flex items-center gap-3 shrink-0">
             <button
               onDoubleClick={onDoubleClickLogo}
-              title="PartPulse Spares - Double-click logo for Admin Inventory & Costing"
+              title="Apex Range Rover Spares Kenya - Double-click logo for Admin Inventory & Costing"
               className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none"
             >
               <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm tracking-wider shadow-sm transition-transform group-hover:scale-105">
-                PP
+                AR
               </div>
               <div>
                 <span className="text-base font-bold tracking-tight text-slate-900 group-hover:text-slate-800 transition-colors whitespace-nowrap block">
-                  PartPulse Spares
+                  Apex Range Rover Spares
                 </span>
                 <span className="text-[10px] text-slate-400 group-hover:text-slate-600 transition-colors block">
-                  Double-click logo for Admin
+                  Nairobi, Kenya · Double-click for Admin
                 </span>
               </div>
             </button>
@@ -92,7 +92,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search part #, Hilux, oil filter..."
+                placeholder="Search part #, Vogue, brake pads, water pump..."
                 className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-100 hover:bg-slate-50 focus:bg-white border border-transparent focus:border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none transition-colors"
               />
             </div>

@@ -476,7 +476,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 type="text"
                 value={vehicleRef}
                 onChange={(e) => setVehicleRef(e.target.value)}
-                placeholder="e.g. Hilux 2.8 KDC-109Z"
+                placeholder="e.g. Range Rover Vogue L405 KDA 482B"
                 className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
               />
             </div>

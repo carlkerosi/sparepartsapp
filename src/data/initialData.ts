@@ -6,9 +6,13 @@ export const DEFAULT_SETTINGS: InventorySettings = {
   usdToKshRate: 130, // 1 USD = 130 KSh
   defaultTaxRatePercent: 16, // 16% standard VAT
   businessName: 'Apex Range Rover Spares Kenya Ltd',
-  businessAddress: 'Enterprise Road, Industrial Area, Nairobi, Kenya',
+  businessAddress: 'Enterprise Road, Commercial Centre, Industrial Area, Nairobi, Kenya',
   businessPhone: '+254 722 849 204',
-  businessTaxId: 'P051892048X',
+  businessTaxId: 'P051892048X', // KRA e-TIMS PIN
+  businessRegNumber: 'PVT-EYU7821 / CPR/2021/849204', // Kenyan Company Reg No
+  mpesaPaybillNumber: '849204', // M-Pesa Business Number (Paybill)
+  mpesaTillNumber: '948201', // Lipa na M-Pesa Buy Goods Till
+  businessEmail: 'orders@apexspares.co.ke',
   adminAccessCode: '1234',
 };
 

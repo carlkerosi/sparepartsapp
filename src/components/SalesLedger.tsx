@@ -81,7 +81,7 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
   return (
     <div className="space-y-4">
       {/* Sales Summary KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="bg-white border border-slate-200 rounded-lg p-3.5">
           <span className="text-xs text-slate-500 block">Total Sales Count</span>
           <div className="text-xl font-bold font-mono tabular-nums text-slate-900 mt-1">
@@ -93,13 +93,24 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
         </div>
 
         <div className="bg-white border border-slate-200 rounded-lg p-3.5">
-          <span className="text-xs text-slate-500 block">Gross Revenue (Ex-Tax)</span>
+          <span className="text-xs text-slate-500 block">Net Revenue (Ex-Tax)</span>
           <div className="text-xl font-bold font-mono tabular-nums text-slate-900 mt-1">
             {formatCurrency(metrics.totalRevenueEx, currencySymbol)}
           </div>
           <span className="text-[11px] text-slate-400">
-            {formatCurrency(metrics.totalRevenueInc, currencySymbol)} Inc-Tax
+            {formatCurrency(metrics.totalRevenueInc, currencySymbol)} Gross Inc
           </span>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 border-l-4 border-l-slate-900">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-800 block">16% VAT Tax (Owner)</span>
+            <span className="text-[10px] font-mono text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded font-bold">KRA</span>
+          </div>
+          <div className="text-xl font-bold font-mono tabular-nums text-slate-900 mt-1">
+            {formatCurrency(metrics.totalTaxCollected, currencySymbol)}
+          </div>
+          <span className="text-[11px] text-slate-400">Output tax on invoices</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-lg p-3.5">
@@ -107,7 +118,7 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
           <div className="text-xl font-bold font-mono tabular-nums text-slate-700 mt-1">
             {formatCurrency(metrics.totalCogsLanded, currencySymbol)}
           </div>
-          <span className="text-[11px] text-slate-400">Total freight & origin cost</span>
+          <span className="text-[11px] text-slate-400">Freight & origin cost</span>
         </div>
 
         <div className="bg-white border border-slate-200 rounded-lg p-3.5">
@@ -116,7 +127,7 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
             +{formatCurrency(metrics.totalGrossProfit, currencySymbol)}{' '}
             <span className="text-xs font-normal">({metrics.overallMarginPercent}%)</span>
           </div>
-          <span className="text-[11px] text-slate-400">Actual profit realized</span>
+          <span className="text-[11px] text-slate-400">Actual business profit</span>
         </div>
       </div>
 
@@ -207,6 +218,7 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
                 <th className="py-3 px-3 text-center">Qty</th>
                 <th className="py-3 px-3 text-right">COGS Landed ({currencySymbol})</th>
                 <th className="py-3 px-3 text-right">Revenue Ex ({currencySymbol})</th>
+                <th className="py-3 px-3 text-right">16% VAT ({currencySymbol})</th>
                 <th className="py-3 px-3 text-right">Total Inc ({currencySymbol})</th>
                 <th className="py-3 px-3 text-right">Gross Profit ({currencySymbol})</th>
                 <th className="py-3 px-3 text-center">Payment</th>
@@ -216,7 +228,7 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="py-12 text-center text-slate-500">
+                  <td colSpan={11} className="py-12 text-center text-slate-500">
                     <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="text-sm font-medium text-slate-700">No sales transactions found</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -297,6 +309,11 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
                     {/* Revenue Ex */}
                     <td className="py-3 px-3 align-top text-right font-mono tabular-nums font-medium text-slate-900">
                       {formatCurrency(sale.subtotalEx, currencySymbol)}
+                    </td>
+
+                    {/* 16% VAT Tax */}
+                    <td className="py-3 px-3 align-top text-right font-mono tabular-nums text-slate-600 font-medium">
+                      {formatCurrency(sale.taxAmount !== undefined ? sale.taxAmount : Math.max(0, (sale.totalInc || 0) - (sale.subtotalEx || 0)), currencySymbol)}
                     </td>
 
                     {/* Total Inc */}

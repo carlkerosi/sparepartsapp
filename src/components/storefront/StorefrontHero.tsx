@@ -215,8 +215,8 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
               <FileText className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <div className="text-xs font-semibold text-white">Official 16% VAT Invoicing</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">KRA compliant tax receipts with vehicle registration and job card tracking.</div>
+              <div className="text-xs font-semibold text-white">Official Tax Invoices & Receipts</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Formal company receipts with vehicle registration and workshop job card tracking.</div>
             </div>
           </div>
         </div>

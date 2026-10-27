@@ -41,16 +41,21 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center justify-between gap-8 h-16">
           {/* Zone 1: Single Brand Wordmark */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-lg tracking-wider shadow-sm">
-              PP
+            <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm tracking-wider shadow-sm">
+              AR
             </div>
-            <a 
-              href="#inventory" 
-              onClick={(e) => { e.preventDefault(); onTabChange('inventory'); }}
-              className="text-lg font-bold tracking-tight text-slate-900 hover:text-slate-800 transition-colors whitespace-nowrap"
-            >
-              PartPulse
-            </a>
+            <div>
+              <a 
+                href="#inventory" 
+                onClick={(e) => { e.preventDefault(); onTabChange('inventory'); }}
+                className="text-sm font-bold tracking-tight text-slate-900 hover:text-slate-800 transition-colors whitespace-nowrap block"
+              >
+                Apex Range Rover Spares
+              </a>
+              <span className="text-[10px] text-emerald-600 font-medium block">
+                Nairobi Central Hub · Admin
+              </span>
+            </div>
           </div>
 
           {/* Zone 2: Navigation Links (single line, whitespace-nowrap) */}

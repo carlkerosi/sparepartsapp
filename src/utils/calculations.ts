@@ -140,6 +140,7 @@ export interface SalesMetrics {
   totalUnitsSold: number;
   totalRevenueEx: number;
   totalRevenueInc: number;
+  totalTaxCollected: number;
   totalCogsLanded: number;
   totalGrossProfit: number;
   overallMarginPercent: number;
@@ -149,6 +150,7 @@ export function calculateSalesMetrics(sales: SaleRecord[]): SalesMetrics {
   let totalUnitsSold = 0;
   let totalRevenueEx = 0;
   let totalRevenueInc = 0;
+  let totalTaxCollected = 0;
   let totalCogsLanded = 0;
   let totalGrossProfit = 0;
 
@@ -156,6 +158,7 @@ export function calculateSalesMetrics(sales: SaleRecord[]): SalesMetrics {
     totalUnitsSold += s.totalUnits || 0;
     totalRevenueEx += s.subtotalEx || 0;
     totalRevenueInc += s.totalInc || 0;
+    totalTaxCollected += s.taxAmount !== undefined ? s.taxAmount : Math.max(0, (s.totalInc || 0) - (s.subtotalEx || 0));
     totalCogsLanded += s.totalCogsLanded || 0;
     totalGrossProfit += s.totalGrossProfit || 0;
   }
@@ -169,6 +172,7 @@ export function calculateSalesMetrics(sales: SaleRecord[]): SalesMetrics {
     totalUnitsSold,
     totalRevenueEx: Number(totalRevenueEx.toFixed(2)),
     totalRevenueInc: Number(totalRevenueInc.toFixed(2)),
+    totalTaxCollected: Number(totalTaxCollected.toFixed(2)),
     totalCogsLanded: Number(totalCogsLanded.toFixed(2)),
     totalGrossProfit: Number(totalGrossProfit.toFixed(2)),
     overallMarginPercent: Number(overallMarginPercent.toFixed(1)),

@@ -100,12 +100,12 @@ export const ValuationAnalytics: React.FC<ValuationAnalyticsProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 4 Financial Pillar Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* 5 Financial Pillar Cards (Including Owner KRA VAT Liability) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total FOB Valuation */}
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-            <span>FOB Origin Valuation</span>
+            <span>FOB Origin Cost</span>
             <span className="text-[10px] font-mono text-slate-400">USD</span>
           </div>
           <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 mt-2">
@@ -126,7 +126,7 @@ export const ValuationAnalytics: React.FC<ValuationAnalyticsProps> = ({
             {formatCurrency(invMetrics.totalLandedValueUsd, currencySymbol)}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Cleared inventory asset value in Kenyan Shillings (FOB converted + Sea/Air Freight + EAC Duties + Port Clearance).
+            Cleared inventory asset value in KSh (FOB + Freight + EAC Duties + Port Clearance).
           </p>
         </div>
 
@@ -140,14 +140,28 @@ export const ValuationAnalytics: React.FC<ValuationAnalyticsProps> = ({
             {formatCurrency(invMetrics.totalRetailValueEx, currencySymbol)}
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Gross retail sales if current warehouse inventory is 100% sold at list price.
+            Gross net retail sales if current warehouse inventory is 100% sold at list price.
+          </p>
+        </div>
+
+        {/* KRA 16% Output VAT Liability (Owner View) */}
+        <div className="bg-white border border-slate-200 rounded-lg p-4 border-l-4 border-l-slate-900">
+          <div className="text-xs font-semibold text-slate-800 uppercase tracking-wider flex items-center justify-between">
+            <span>KRA 16% VAT (Owner)</span>
+            <span className="text-[10px] font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.5 rounded">e-TIMS</span>
+          </div>
+          <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 mt-2">
+            {formatCurrency(invMetrics.totalRetailValueInc - invMetrics.totalRetailValueEx, currencySymbol)}
+          </div>
+          <p className="text-xs text-slate-500 mt-1">
+            16% output VAT remittance due to KRA upon full inventory sales.
           </p>
         </div>
 
         {/* Unrealized Gross Margin */}
         <div className="bg-white border border-slate-200 rounded-lg p-4">
           <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-            <span>Unrealized Gross Margin</span>
+            <span>Unrealized Margin</span>
             <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
               +{invMetrics.unrealizedMarginPercent}%
             </span>

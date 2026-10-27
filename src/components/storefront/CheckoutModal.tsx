@@ -215,7 +215,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                   <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-950 p-3.5 rounded-lg border border-slate-800 text-left space-y-1">
                     <p className="text-emerald-400 font-bold">Do you want to pay {formatCurrency(totalInc, currencySymbol)}?</p>
-                    <p className="text-slate-300">To: APEX AUTO SPARES (KENYA)</p>
+                    <p className="text-slate-300">To: APEX RANGE ROVER SPARES (KENYA)</p>
                     <p className="text-slate-400 text-[10px]">Till / Paybill: 849204 · Acc: {items[0]?.part?.partNumber || 'PARTS'}</p>
                     <p className="text-slate-400 text-[10px]">Sent to: <span className="text-white font-semibold">{customerPhone}</span></p>
                   </div>
@@ -296,7 +296,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               )}
               <div className="flex justify-between pt-1 border-t border-slate-200 text-sm font-bold text-slate-900">
-                <span>Grand Total (16% VAT Inc):</span>
+                <span>Total Order Amount:</span>
                 <span>{formatCurrency(confirmedSale.totalInc, currencySymbol)}</span>
               </div>
               <div className="flex justify-between text-[11px] text-slate-500 font-normal">
@@ -356,7 +356,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div>
                   <span className="font-semibold text-slate-800">{items.length} item(s) selected</span>
                   <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                    Landed Cost: <strong className="text-emerald-700">{formatCurrency(totalLandedCogs, currencySymbol)}</strong> · 16% VAT Inc
+                    Landed Cost: <strong className="text-emerald-700">{formatCurrency(totalLandedCogs, currencySymbol)}</strong>
                   </div>
                 </div>
                 <div className="text-right">

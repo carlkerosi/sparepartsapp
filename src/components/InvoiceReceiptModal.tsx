@@ -82,8 +82,19 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
               <p className="text-xs text-slate-500 mt-1 max-w-sm">
                 {settings.businessAddress}
               </p>
-              <div className="text-xs text-slate-500 mt-0.5">
-                Phone: {settings.businessPhone} · Tax PIN: <span className="font-mono font-medium text-slate-700">{settings.businessTaxId}</span>
+              <div className="text-xs text-slate-500 mt-1 space-y-0.5">
+                <div>Phone: <strong className="text-slate-700 font-mono">{settings.businessPhone}</strong> · Email: <span className="text-slate-700">{settings.businessEmail || 'orders@apexspares.co.ke'}</span></div>
+                <div>
+                  KRA e-TIMS PIN: <span className="font-mono font-bold text-slate-800">{settings.businessTaxId}</span>
+                  {settings.businessRegNumber && (
+                    <span> · BRS Reg: <span className="font-mono font-medium text-slate-700">{settings.businessRegNumber}</span></span>
+                  )}
+                </div>
+                {(settings.mpesaPaybillNumber || settings.mpesaTillNumber) && (
+                  <div className="text-[11px] text-emerald-800 font-mono">
+                    Lipa na M-Pesa Paybill: <strong>{settings.mpesaPaybillNumber || '849204'}</strong> · Till: <strong>{settings.mpesaTillNumber || '948201'}</strong>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -196,19 +207,23 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
               </div>
             </div>
 
-            <div className="w-56 space-y-1.5 text-right">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal (Ex-Tax):</span>
-                <span className="font-mono tabular-nums font-medium">
-                  {formatCurrency(sale.subtotalEx, settings.currencySymbol)}
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Tax / VAT ({settings.defaultTaxRatePercent}%):</span>
-                <span className="font-mono tabular-nums font-medium">
-                  {formatCurrency(sale.taxAmount, settings.currencySymbol)}
-                </span>
-              </div>
+            <div className="w-60 space-y-1.5 text-right">
+              {showProfitMargin && (
+                <>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Goods Net (Ex-Tax):</span>
+                    <span className="font-mono tabular-nums font-medium">
+                      {formatCurrency(sale.subtotalEx, settings.currencySymbol)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>KRA 16% VAT Tax:</span>
+                    <span className="font-mono tabular-nums font-medium text-emerald-800">
+                      {formatCurrency(sale.taxAmount !== undefined ? sale.taxAmount : (sale.totalInc - sale.subtotalEx), settings.currencySymbol)}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-1.5">
                 <span>Total Amount Due:</span>
                 <span className="font-mono tabular-nums">

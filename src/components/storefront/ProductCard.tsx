@@ -148,15 +148,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="pt-3 border-t border-slate-100 flex items-end justify-between gap-2">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 block mb-0.5">
-              Selling Price (Inc 16% VAT)
+              Selling Price
             </span>
             <div className="text-base sm:text-lg font-black text-slate-900 font-mono tabular-nums leading-none">
               {formatCurrency(part.retailPriceInc, currencySymbol)}
             </div>
             <div className="text-[10px] text-slate-600 mt-1 font-mono tabular-nums flex items-center gap-1.5 flex-wrap">
-              <span className="font-semibold text-emerald-700">Landed: {formatCurrency(part.unitCostLanded, currencySymbol)}</span>
-              <span className="text-slate-300">·</span>
-              <span className="text-slate-500">Ex-VAT: {formatCurrency(part.retailPriceEx, currencySymbol)}</span>
+              <span className="font-semibold text-emerald-700">Landed Cost: {formatCurrency(part.unitCostLanded, currencySymbol)}</span>
             </div>
           </div>
 
