@@ -46,15 +46,15 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
           <div className="flex items-center gap-3 shrink-0">
             <button
               onDoubleClick={onDoubleClickLogo}
-              title="Apex Range Rover Spares Kenya - Double-click logo for Admin Inventory & Costing"
+              title="Panzer Autoparts Limited - Double-click logo for Admin Inventory & Costing"
               className="flex items-center gap-2.5 text-left group cursor-pointer focus:outline-none"
             >
               <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm tracking-wider shadow-sm transition-transform group-hover:scale-105">
-                AR
+                PA
               </div>
               <div>
                 <span className="text-base font-bold tracking-tight text-slate-900 group-hover:text-slate-800 transition-colors whitespace-nowrap block">
-                  Apex Range Rover Spares
+                  Panzer Autoparts Limited
                 </span>
                 <span className="text-[10px] text-slate-400 group-hover:text-slate-600 transition-colors block">
                   Nairobi, Kenya · Double-click for Admin

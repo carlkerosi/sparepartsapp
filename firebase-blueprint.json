@@ -239,6 +239,10 @@
         "notes": {
           "type": "string",
           "maxLength": 1000
+        },
+        "items": {
+          "type": "array",
+          "description": "List of line items in invoice"
         }
       },
       "required": ["invoiceNumber", "customerName", "subtotalEx", "totalInc", "paymentMethod"]
@@ -293,6 +297,107 @@
         }
       },
       "required": ["partId", "partNumber", "type", "quantityDelta", "previousStock", "newStock"]
+    },
+    "InventorySettings": {
+      "title": "InventorySettings",
+      "description": "Store operational settings, tax rates, currency conversion, and Kenyan business identifiers",
+      "type": "object",
+      "properties": {
+        "currency": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "currencySymbol": {
+          "type": "string",
+          "maxLength": 10
+        },
+        "usdToKshRate": {
+          "type": "number"
+        },
+        "defaultTaxRatePercent": {
+          "type": "number"
+        },
+        "businessName": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "businessAddress": {
+          "type": "string",
+          "maxLength": 250
+        },
+        "businessPhone": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "businessTaxId": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "businessRegNumber": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "mpesaPaybillNumber": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "mpesaTillNumber": {
+          "type": "string",
+          "maxLength": 30
+        },
+        "businessEmail": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "adminAccessCode": {
+          "type": "string",
+          "maxLength": 30
+        }
+      },
+      "required": ["currency", "currencySymbol", "businessName"]
+    },
+    "AdminAccount": {
+      "title": "AdminAccount",
+      "description": "Authorized administrative user profile, role, and access credentials",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique admin account identifier or auth UID",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "description": "Administrator Google or company email address",
+          "maxLength": 120
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Full name of administrator or clerk",
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "description": "Access control tier",
+          "enum": ["SUPER_ADMIN", "INVENTORY_MANAGER", "SALES_CLERK"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Account activation status",
+          "enum": ["ACTIVE", "INACTIVE"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account creation",
+          "maxLength": 60
+        },
+        "lastLogin": {
+          "type": "string",
+          "description": "ISO timestamp of last administrative login",
+          "maxLength": 60
+        }
+      },
+      "required": ["email", "displayName", "role", "status"]
     }
   },
   "firestore": {
@@ -311,6 +416,14 @@
     "/movements/{movementId}": {
       "schema": "StockMovement",
       "description": "Real-time stock movements and audit ledger"
+    },
+    "/settings/{settingId}": {
+      "schema": "InventorySettings",
+      "description": "Application business configuration, tax rates, and M-Pesa business numbers"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminAccount",
+      "description": "Authorized administrative team accounts and role assignments"
     }
   }
 }

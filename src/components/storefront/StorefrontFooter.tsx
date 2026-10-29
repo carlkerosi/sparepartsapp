@@ -19,15 +19,15 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded bg-white text-slate-900 font-bold flex items-center justify-center text-xs shadow-xs">
-                AR
+                PA
               </div>
               <div>
-                <span className="text-white font-bold tracking-tight text-sm block">Apex Range Rover Spares</span>
+                <span className="text-white font-bold tracking-tight text-sm block">Panzer Autoparts Limited</span>
                 <span className="text-[10px] text-emerald-400 font-medium">Kenyan Registered Automotive Importer</span>
               </div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Apex Range Rover Spares Kenya Ltd is a registered Kenyan automotive company operating from Enterprise Road, Industrial Area, Nairobi. We specialize strictly in genuine OEM and certified Tier-1 replacement parts for Range Rover (Vogue, Sport, Velar, and Evoque), with transparent landed costing in Kenyan Shillings (KSh) and rapid dispatch to Nairobi workshops.
+              Panzer Autoparts Limited is a registered Kenyan automotive company operating from Enterprise Road, Industrial Area, Nairobi. We specialize strictly in genuine OEM and certified Tier-1 replacement parts for Range Rover (Vogue, Sport, Velar, and Evoque), with transparent landed costing in Kenyan Shillings (KSh) and rapid dispatch to Nairobi workshops.
             </p>
           </div>
 
@@ -51,7 +51,7 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>{settings.businessEmail || 'orders@apexspares.co.ke'}</span>
+                <span>{settings.businessEmail || 'orders@panzerautoparts.co.ke'}</span>
               </div>
               <div className="text-[11px] text-slate-500 pt-1">
                 Mon - Fri: 8:00 AM - 5:30 PM · Sat: 8:30 AM - 2:00 PM (EAT)
@@ -76,10 +76,6 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
               <li className="pt-0.5">
                 <span className="font-sans text-[11px] text-slate-400">BRS Company Reg:</span>{' '}
                 <strong className="text-slate-200">{settings.businessRegNumber || 'PVT-EYU7821 / CPR/2021/849204'}</strong>
-              </li>
-              <li>
-                <span className="font-sans text-[11px] text-slate-400">KRA e-TIMS PIN:</span>{' '}
-                <strong className="text-slate-200">{settings.businessTaxId || 'P051892048X'}</strong>
               </li>
               <li>
                 <span className="font-sans text-[11px] text-slate-400">Nairobi County SBP:</span>{' '}
@@ -110,7 +106,7 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
         {/* Bottom Bar */}
         <div className="pt-6 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400">
           <div>
-            © {new Date().getFullYear()} {settings.businessName || 'Apex Range Rover Spares Kenya Ltd'}. Incorporated in Kenya under the Companies Act 2015.
+            © {new Date().getFullYear()} {settings.businessName || 'Panzer Autoparts Limited'}. Incorporated in Kenya under the Companies Act 2015.
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <span className="inline-flex items-center gap-1 text-slate-300">

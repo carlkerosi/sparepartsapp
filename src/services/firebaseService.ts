@@ -9,15 +9,18 @@ import {
   query,
   orderBy,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Supplier, SparePart, SaleRecord, StockMovement } from '../types/inventory';
-import { INITIAL_SUPPLIERS, INITIAL_PARTS, INITIAL_SALES, INITIAL_MOVEMENTS } from '../data/initialData';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { Supplier, SparePart, SaleRecord, StockMovement, InventorySettings, AdminAccount } from '../types/inventory';
+import { INITIAL_SUPPLIERS, INITIAL_PARTS, INITIAL_SALES, INITIAL_MOVEMENTS, DEFAULT_SETTINGS, INITIAL_ADMINS } from '../data/initialData';
 
 const COLLECTIONS = {
   SUPPLIERS: 'suppliers',
   PARTS: 'parts',
   SALES: 'sales',
   MOVEMENTS: 'movements',
+  SETTINGS: 'settings',
+  ADMINS: 'admins',
 };
 
 // 1. Subscribe to Suppliers (Real-time sync)
@@ -252,3 +255,151 @@ export async function saveMovementToFirestore(movement: StockMovement): Promise<
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+// 5. Subscribe to Settings
+export function subscribeSettings(
+  onUpdate: (settings: InventorySettings) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const path = `${COLLECTIONS.SETTINGS}/current`;
+  const docRef = doc(db, COLLECTIONS.SETTINGS, 'current');
+
+  return onSnapshot(
+    docRef,
+    async (snapshot) => {
+      if (!snapshot.exists()) {
+        try {
+          await setDoc(docRef, DEFAULT_SETTINGS);
+        } catch (e) {
+          console.warn('Initial settings seeding skipped:', e);
+        }
+        onUpdate(DEFAULT_SETTINGS);
+        return;
+      }
+      onUpdate(snapshot.data() as InventorySettings);
+    },
+    (err) => {
+      console.warn('Firestore onSnapshot settings error:', err);
+      onError?.(err);
+      handleFirestoreError(err, OperationType.GET, path);
+    }
+  );
+}
+
+export async function saveSettingsToFirestore(settings: InventorySettings): Promise<void> {
+  const path = `${COLLECTIONS.SETTINGS}/current`;
+  try {
+    await setDoc(doc(db, COLLECTIONS.SETTINGS, 'current'), settings);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+// 6. Subscribe to Admin Accounts
+export function subscribeAdminAccounts(
+  onUpdate: (admins: AdminAccount[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const path = COLLECTIONS.ADMINS;
+  const colRef = collection(db, path);
+
+  return onSnapshot(
+    colRef,
+    async (snapshot) => {
+      if (snapshot.empty) {
+        try {
+          const batch = writeBatch(db);
+          for (const a of INITIAL_ADMINS) {
+            batch.set(doc(db, path, a.id), a);
+          }
+          await batch.commit();
+        } catch (e) {
+          console.warn('Initial admin account seeding skipped:', e);
+        }
+        onUpdate(INITIAL_ADMINS);
+        return;
+      }
+
+      const items: AdminAccount[] = [];
+      snapshot.forEach((d) => {
+        items.push({ ...(d.data() as AdminAccount), id: d.id });
+      });
+
+      // Ensure Carl Kerosi is always present
+      const hasCarl = items.some((a) => a.email.toLowerCase() === 'kerosicarl@gmail.com');
+      if (!hasCarl && INITIAL_ADMINS.length > 0) {
+        try {
+          await setDoc(doc(db, path, INITIAL_ADMINS[0].id), INITIAL_ADMINS[0]);
+          items.unshift(INITIAL_ADMINS[0]);
+        } catch (e) {
+          console.warn('Could not auto-seed primary admin:', e);
+        }
+      }
+
+      onUpdate(items);
+    },
+    (err) => {
+      console.warn('Firestore onSnapshot admins error:', err);
+      onError?.(err);
+      handleFirestoreError(err, OperationType.GET, path);
+    }
+  );
+}
+
+export async function saveAdminAccountToFirestore(account: AdminAccount): Promise<void> {
+  const path = `${COLLECTIONS.ADMINS}/${account.id}`;
+  try {
+    await setDoc(doc(db, COLLECTIONS.ADMINS, account.id), account);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function deleteAdminAccountFromFirestore(accountId: string): Promise<void> {
+  const path = `${COLLECTIONS.ADMINS}/${accountId}`;
+  try {
+    await deleteDoc(doc(db, COLLECTIONS.ADMINS, accountId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+// Google Authentication for Administrators
+export async function signInWithGoogleAdmin(): Promise<{ user: any; adminAccount: AdminAccount }> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  
+  const result = await signInWithPopup(auth, provider);
+  const user = result.user;
+  const userEmail = (user.email || '').toLowerCase();
+
+  // Create or update Admin record in Firestore
+  const isCarl = userEmail === 'kerosicarl@gmail.com';
+  const adminAccount: AdminAccount = {
+    id: `admin-${user.uid.slice(0, 16)}`,
+    email: user.email || 'admin@panzerautoparts.co.ke',
+    displayName: user.displayName || (isCarl ? 'Carl Kerosi' : 'Authorized Admin'),
+    role: isCarl ? 'SUPER_ADMIN' : 'INVENTORY_MANAGER',
+    status: 'ACTIVE',
+    createdAt: new Date().toISOString(),
+    lastLogin: new Date().toISOString(),
+    avatarUrl: user.photoURL || undefined,
+  };
+
+  try {
+    await saveAdminAccountToFirestore(adminAccount);
+  } catch (e) {
+    console.warn('Could not persist Google Admin to Firestore:', e);
+  }
+
+  return { user, adminAccount };
+}
+
+export async function signOutAdmin(): Promise<void> {
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.warn('Error signing out:', e);
+  }
+}
+

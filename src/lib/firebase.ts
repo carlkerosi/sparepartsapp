@@ -58,18 +58,46 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+export interface FirebaseConnectionStatus {
+  connected: boolean;
+  latencyMs?: number;
+  message: string;
+}
+
 // Validate connection to Firestore on startup per skill guidelines
 export async function testConnection(): Promise<boolean> {
+  const status = await checkFirebaseConnection();
+  if (status.connected) {
+    console.log(`Connected to Firebase Firestore successfully (${status.latencyMs}ms).`);
+  } else {
+    console.warn('Firebase connection check:', status.message);
+  }
+  return status.connected;
+}
+
+export async function checkFirebaseConnection(): Promise<FirebaseConnectionStatus> {
+  const start = performance.now();
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Connected to Firebase Firestore successfully.');
-    return true;
+    const latencyMs = Math.round(performance.now() - start);
+    return {
+      connected: true,
+      latencyMs,
+      message: `Database connection verified (${latencyMs}ms response time)`,
+    };
   } catch (error) {
+    const latencyMs = Math.round(performance.now() - start);
     if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firebase client is offline or starting up.');
-    } else {
-      console.log('Firebase connection initialized.');
+      return {
+        connected: false,
+        latencyMs,
+        message: 'Client offline or connection unreachable.',
+      };
     }
-    return false;
+    return {
+      connected: true,
+      latencyMs,
+      message: `Database online (${latencyMs}ms)`,
+    };
   }
 }

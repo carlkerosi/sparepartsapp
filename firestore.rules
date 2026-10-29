@@ -2,12 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default deny all unknown collections
+    // Global Safety Net: Default deny all unknown collections
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper functions
+    // Hardened path and data helpers
     function isValidId(id) {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
@@ -20,12 +20,15 @@ service cloud.firestore {
       return resource.data;
     }
 
-    // 1. Supplier Validation
+    // 1. Supplier Validation Helper
     function isValidSupplier(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 150
+      return data.keys().hasAll(['name', 'code', 'paymentTerms', 'status'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 150
         && data.code is string && data.code.size() > 0 && data.code.size() <= 30
-        && data.paymentTerms is string && data.paymentTerms.size() <= 60
-        && (!('status' in data) || data.status in ['ACTIVE', 'INACTIVE', 'UNDER_REVIEW'])
+        && data.paymentTerms is string && data.paymentTerms.size() > 0 && data.paymentTerms.size() <= 60
+        && data.status in ['ACTIVE', 'INACTIVE', 'UNDER_REVIEW']
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128))
+        && (!('contactPerson' in data) || (data.contactPerson is string && data.contactPerson.size() <= 100))
         && (!('email' in data) || (data.email is string && data.email.size() <= 120))
         && (!('phone' in data) || (data.phone is string && data.phone.size() <= 50))
         && (!('website' in data) || (data.website is string && data.website.size() <= 200))
@@ -35,18 +38,22 @@ service cloud.firestore {
         && (!('shippingTerms' in data) || (data.shippingTerms is string && data.shippingTerms.size() <= 60))
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
         && (!('leadTimeDays' in data) || (data.leadTimeDays is number && data.leadTimeDays >= 0))
-        && (!('rating' in data) || (data.rating is number && data.rating >= 0 && data.rating <= 5));
+        && (!('rating' in data) || (data.rating is number && data.rating >= 0 && data.rating <= 5))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60));
     }
 
-    // 2. SparePart Validation
+    // 2. SparePart Validation Helper
     function isValidPart(data) {
-      return data.partNumber is string && data.partNumber.size() > 0 && data.partNumber.size() <= 60
+      return data.keys().hasAll(['partNumber', 'description', 'unitCostFobUsd', 'unitCostLanded', 'retailPriceEx', 'retailPriceInc', 'stockQuantity'])
+        && data.partNumber is string && data.partNumber.size() > 0 && data.partNumber.size() <= 60
         && data.description is string && data.description.size() > 0 && data.description.size() <= 250
         && data.unitCostFobUsd is number && data.unitCostFobUsd >= 0
         && data.unitCostLanded is number && data.unitCostLanded >= 0
         && data.retailPriceEx is number && data.retailPriceEx >= 0
         && data.retailPriceInc is number && data.retailPriceInc >= 0
         && data.stockQuantity is number && data.stockQuantity >= 0
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128))
         && (!('minStockLevel' in data) || (data.minStockLevel is number && data.minStockLevel >= 0))
         && (!('category' in data) || (data.category is string && data.category.size() <= 60))
         && (!('location' in data) || (data.location is string && data.location.size() <= 80))
@@ -54,70 +61,131 @@ service cloud.firestore {
         && (!('vehicleCompatibility' in data) || (data.vehicleCompatibility is string && data.vehicleCompatibility.size() <= 250))
         && (!('supplierId' in data) || (data.supplierId is string && data.supplierId.size() <= 128))
         && (!('supplier' in data) || (data.supplier is string && data.supplier.size() <= 150))
-        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2500000));
+        && (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2500000))
+        && (!('lastUpdated' in data) || (data.lastUpdated is string && data.lastUpdated.size() <= 60));
     }
 
-    // 3. SaleRecord Validation
+    // 3. SaleRecord Validation Helper
     function isValidSale(data) {
-      return data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 50
+      return data.keys().hasAll(['invoiceNumber', 'customerName', 'subtotalEx', 'totalInc', 'paymentMethod'])
+        && data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 50
         && data.customerName is string && data.customerName.size() > 0 && data.customerName.size() <= 120
         && data.subtotalEx is number && data.subtotalEx >= 0
         && data.totalInc is number && data.totalInc >= 0
-        && data.paymentMethod is string && data.paymentMethod.size() <= 50
+        && data.paymentMethod in ['Cash', 'Credit Card', 'Bank Transfer', 'Store Credit', 'Mobile Money']
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128))
+        && (!('timestamp' in data) || (data.timestamp is string && data.timestamp.size() <= 60))
         && (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 50))
         && (!('deliveryAddress' in data) || (data.deliveryAddress is string && data.deliveryAddress.size() <= 250))
-        && (!('mpesaReceiptNumber' in data) || (data.mpesaReceiptNumber is string && data.mpesaReceiptNumber.size() <= 60))
         && (!('vehicleRef' in data) || (data.vehicleRef is string && data.vehicleRef.size() <= 100))
+        && (!('totalUnits' in data) || (data.totalUnits is number && data.totalUnits >= 0))
+        && (!('taxAmount' in data) || (data.taxAmount is number && data.taxAmount >= 0))
+        && (!('totalCogsLanded' in data) || (data.totalCogsLanded is number && data.totalCogsLanded >= 0))
+        && (!('totalGrossProfit' in data) || (data.totalGrossProfit is number))
+        && (!('marginPercent' in data) || (data.marginPercent is number))
+        && (!('mpesaReceiptNumber' in data) || (data.mpesaReceiptNumber is string && data.mpesaReceiptNumber.size() <= 60))
         && (!('salesPerson' in data) || (data.salesPerson is string && data.salesPerson.size() <= 80))
-        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
+        && (!('items' in data) || (data.items is list && data.items.size() <= 100));
     }
 
-    // 4. StockMovement Validation
+    // 4. StockMovement Validation Helper (Audit Log)
     function isValidMovement(data) {
-      return data.partId is string && data.partId.size() > 0 && data.partId.size() <= 128
+      return data.keys().hasAll(['partId', 'partNumber', 'type', 'quantityDelta', 'previousStock', 'newStock'])
+        && data.partId is string && data.partId.size() > 0 && data.partId.size() <= 128
         && data.partNumber is string && data.partNumber.size() > 0 && data.partNumber.size() <= 60
-        && data.type is string && data.type.size() <= 40
+        && data.type in ['SALE', 'PURCHASE_RECEIPT', 'ADJUSTMENT', 'RETURN']
         && data.quantityDelta is number
         && data.previousStock is number && data.previousStock >= 0
         && data.newStock is number && data.newStock >= 0
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128))
+        && (!('description' in data) || (data.description is string && data.description.size() <= 250))
+        && (!('timestamp' in data) || (data.timestamp is string && data.timestamp.size() <= 60))
         && (!('referenceDoc' in data) || (data.referenceDoc is string && data.referenceDoc.size() <= 120))
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
         && (!('user' in data) || (data.user is string && data.user.size() <= 80));
     }
 
-    // Collection Rules
+    // 5. InventorySettings Validation Helper
+    function isValidSettings(data) {
+      return data.keys().hasAll(['currency', 'currencySymbol', 'businessName'])
+        && data.currency is string && data.currency.size() > 0 && data.currency.size() <= 10
+        && data.currencySymbol is string && data.currencySymbol.size() > 0 && data.currencySymbol.size() <= 10
+        && data.businessName is string && data.businessName.size() > 0 && data.businessName.size() <= 150
+        && (!('usdToKshRate' in data) || (data.usdToKshRate is number && data.usdToKshRate > 0))
+        && (!('defaultTaxRatePercent' in data) || (data.defaultTaxRatePercent is number && data.defaultTaxRatePercent >= 0))
+        && (!('businessAddress' in data) || (data.businessAddress is string && data.businessAddress.size() <= 250))
+        && (!('businessPhone' in data) || (data.businessPhone is string && data.businessPhone.size() <= 50))
+        && (!('businessTaxId' in data) || (data.businessTaxId is string && data.businessTaxId.size() <= 50))
+        && (!('businessRegNumber' in data) || (data.businessRegNumber is string && data.businessRegNumber.size() <= 100))
+        && (!('mpesaPaybillNumber' in data) || (data.mpesaPaybillNumber is string && data.mpesaPaybillNumber.size() <= 30))
+        && (!('mpesaTillNumber' in data) || (data.mpesaTillNumber is string && data.mpesaTillNumber.size() <= 30))
+        && (!('businessEmail' in data) || (data.businessEmail is string && data.businessEmail.size() <= 120))
+        && (!('adminAccessCode' in data) || (data.adminAccessCode is string && data.adminAccessCode.size() <= 30));
+    }
+
+    // 6. AdminAccount Validation Helper
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['email', 'displayName', 'role', 'status'])
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 120
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100
+        && data.role in ['SUPER_ADMIN', 'INVENTORY_MANAGER', 'SALES_CLERK']
+        && data.status in ['ACTIVE', 'INACTIVE']
+        && (!('id' in data) || (data.id is string && data.id.size() <= 128))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60))
+        && (!('lastLogin' in data) || (data.lastLogin is string && data.lastLogin.size() <= 60));
+    }
+
+    // ==========================================
+    // COLLECTION ACCESS POLICIES
+    // ==========================================
+
+    // Suppliers Directory
     match /suppliers/{supplierId} {
       allow read: if true;
       allow create, update: if isValidId(supplierId) && isValidSupplier(incoming());
       allow delete: if isValidId(supplierId);
     }
 
+    // Spare Parts Catalog
     match /parts/{partId} {
       allow read: if true;
       allow create, update: if isValidId(partId) && isValidPart(incoming());
       allow delete: if isValidId(partId);
     }
 
+    // Sales Records & Invoices
     match /sales/{saleId} {
       allow read: if true;
       allow create: if isValidId(saleId) && isValidSale(incoming());
-      allow update, delete: if isValidId(saleId);
+      allow update: if isValidId(saleId) && isValidSale(incoming());
+      allow delete: if isValidId(saleId);
     }
 
+    // Stock Movement Audit Log (Strictly Immutable Audit Trail)
     match /movements/{movementId} {
       allow read: if true;
       allow create: if isValidId(movementId) && isValidMovement(incoming());
-      allow update, delete: if false; // Audit trail is immutable
+      allow update, delete: if false; // Audit movements are strictly append-only
     }
 
+    // Business Settings & Currency Rates
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if isValidId(settingId);
+      allow create, update: if isValidId(settingId) && isValidSettings(incoming());
+      allow delete: if false;
     }
 
-    // Test connection probe
+    // Admin Accounts Directory
+    match /admins/{adminId} {
+      allow read: if true;
+      allow create, update: if isValidId(adminId) && isValidAdmin(incoming());
+      allow delete: if isValidId(adminId);
+    }
+
+    // Operational Connection Health Probe
     match /test/{docId} {
-      allow read, write: if true;
+      allow read, write: if isValidId(docId);
     }
   }
 }

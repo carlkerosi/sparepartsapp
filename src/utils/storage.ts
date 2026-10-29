@@ -1,12 +1,13 @@
-import { SparePart, SaleRecord, StockMovement, InventorySettings, Supplier } from '../types/inventory';
-import { INITIAL_PARTS, INITIAL_SALES, INITIAL_MOVEMENTS, DEFAULT_SETTINGS, INITIAL_SUPPLIERS } from '../data/initialData';
+import { SparePart, SaleRecord, StockMovement, InventorySettings, Supplier, AdminAccount } from '../types/inventory';
+import { INITIAL_PARTS, INITIAL_SALES, INITIAL_MOVEMENTS, DEFAULT_SETTINGS, INITIAL_SUPPLIERS, INITIAL_ADMINS } from '../data/initialData';
 
 const STORAGE_KEYS = {
-  SUPPLIERS: 'partpulse_suppliers_v4',
-  PARTS: 'partpulse_parts_v4',
-  SALES: 'partpulse_sales_v4',
-  MOVEMENTS: 'partpulse_movements_v4',
-  SETTINGS: 'partpulse_settings_v4',
+  SUPPLIERS: 'panzer_suppliers_v5',
+  PARTS: 'panzer_parts_v5',
+  SALES: 'panzer_sales_v5',
+  MOVEMENTS: 'panzer_movements_v5',
+  SETTINGS: 'panzer_settings_v5',
+  ADMINS: 'panzer_admins_v5',
 };
 
 export function loadSuppliers(): Supplier[] {
@@ -125,17 +126,53 @@ export function saveSettings(settings: InventorySettings): void {
   }
 }
 
-export function resetAllData(): { suppliers: Supplier[]; parts: SparePart[]; sales: SaleRecord[]; movements: StockMovement[] } {
+export function loadAdminAccounts(): AdminAccount[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.ADMINS);
+    if (!raw) {
+      saveAdminAccounts(INITIAL_ADMINS);
+      return INITIAL_ADMINS;
+    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      saveAdminAccounts(INITIAL_ADMINS);
+      return INITIAL_ADMINS;
+    }
+    // Ensure Carl Kerosi is always included
+    const hasCarl = parsed.some((a: AdminAccount) => a.email.toLowerCase() === 'kerosicarl@gmail.com');
+    if (!hasCarl) {
+      const merged = [INITIAL_ADMINS[0], ...parsed];
+      saveAdminAccounts(merged);
+      return merged;
+    }
+    return parsed;
+  } catch (err) {
+    console.error('Failed to load admin accounts from localStorage', err);
+    return INITIAL_ADMINS;
+  }
+}
+
+export function saveAdminAccounts(admins: AdminAccount[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.ADMINS, JSON.stringify(admins));
+  } catch (err) {
+    console.error('Failed to save admin accounts to localStorage', err);
+  }
+}
+
+export function resetAllData(): { suppliers: Supplier[]; parts: SparePart[]; sales: SaleRecord[]; movements: StockMovement[]; admins: AdminAccount[] } {
   saveSuppliers(INITIAL_SUPPLIERS);
   saveParts(INITIAL_PARTS);
   saveSales(INITIAL_SALES);
   saveMovements(INITIAL_MOVEMENTS);
   saveSettings(DEFAULT_SETTINGS);
+  saveAdminAccounts(INITIAL_ADMINS);
   return {
     suppliers: INITIAL_SUPPLIERS,
     parts: INITIAL_PARTS,
     sales: INITIAL_SALES,
     movements: INITIAL_MOVEMENTS,
+    admins: INITIAL_ADMINS,
   };
 }
 

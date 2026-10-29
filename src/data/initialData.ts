@@ -1,18 +1,18 @@
-import { SparePart, SaleRecord, StockMovement, InventorySettings, Supplier } from '../types/inventory';
+import { SparePart, SaleRecord, StockMovement, InventorySettings, Supplier, AdminAccount } from '../types/inventory';
 
 export const DEFAULT_SETTINGS: InventorySettings = {
   currency: 'KES',
   currencySymbol: 'KSh',
   usdToKshRate: 130, // 1 USD = 130 KSh
   defaultTaxRatePercent: 16, // 16% standard VAT
-  businessName: 'Apex Range Rover Spares Kenya Ltd',
+  businessName: 'Panzer Autoparts Limited',
   businessAddress: 'Enterprise Road, Commercial Centre, Industrial Area, Nairobi, Kenya',
   businessPhone: '+254 722 849 204',
   businessTaxId: 'P051892048X', // KRA e-TIMS PIN
   businessRegNumber: 'PVT-EYU7821 / CPR/2021/849204', // Kenyan Company Reg No
   mpesaPaybillNumber: '849204', // M-Pesa Business Number (Paybill)
   mpesaTillNumber: '948201', // Lipa na M-Pesa Buy Goods Till
-  businessEmail: 'orders@apexspares.co.ke',
+  businessEmail: 'orders@panzerautoparts.co.ke',
   adminAccessCode: '1234',
 };
 
@@ -484,4 +484,26 @@ export const INITIAL_MOVEMENTS: StockMovement[] = [
     user: 'Carl',
     notes: 'Sold via M-Pesa STK Push to Kiprono Koech (Range Rover Sport L494)',
   }
+];
+
+export const INITIAL_ADMINS: AdminAccount[] = [
+  {
+    id: 'admin-kerosi',
+    email: 'kerosicarl@gmail.com',
+    displayName: 'Carl Kerosi',
+    role: 'SUPER_ADMIN',
+    status: 'ACTIVE',
+    createdAt: '2026-10-29T10:00:00Z',
+    lastLogin: '2026-10-29T10:06:00Z',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+  },
+  {
+    id: 'admin-operations',
+    email: 'orders@panzerautoparts.co.ke',
+    displayName: 'Panzer Operations Admin',
+    role: 'SUPER_ADMIN',
+    status: 'ACTIVE',
+    createdAt: '2026-10-29T08:00:00Z',
+    lastLogin: '2026-10-29T09:00:00Z',
+  },
 ];

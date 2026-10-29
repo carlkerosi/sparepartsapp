@@ -83,13 +83,10 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
                 {settings.businessAddress}
               </p>
               <div className="text-xs text-slate-500 mt-1 space-y-0.5">
-                <div>Phone: <strong className="text-slate-700 font-mono">{settings.businessPhone}</strong> · Email: <span className="text-slate-700">{settings.businessEmail || 'orders@apexspares.co.ke'}</span></div>
-                <div>
-                  KRA e-TIMS PIN: <span className="font-mono font-bold text-slate-800">{settings.businessTaxId}</span>
-                  {settings.businessRegNumber && (
-                    <span> · BRS Reg: <span className="font-mono font-medium text-slate-700">{settings.businessRegNumber}</span></span>
-                  )}
-                </div>
+                <div>Phone: <strong className="text-slate-700 font-mono">{settings.businessPhone}</strong> · Email: <span className="text-slate-700">{settings.businessEmail || 'orders@panzerautoparts.co.ke'}</span></div>
+                {settings.businessRegNumber && (
+                  <div>BRS Company Reg: <span className="font-mono font-medium text-slate-700">{settings.businessRegNumber}</span></div>
+                )}
                 {(settings.mpesaPaybillNumber || settings.mpesaTillNumber) && (
                   <div className="text-[11px] text-emerald-800 font-mono">
                     Lipa na M-Pesa Paybill: <strong>{settings.mpesaPaybillNumber || '849204'}</strong> · Till: <strong>{settings.mpesaTillNumber || '948201'}</strong>

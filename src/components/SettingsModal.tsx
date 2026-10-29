@@ -1,6 +1,25 @@
 import React, { useState } from 'react';
-import { InventorySettings } from '../types/inventory';
-import { X, Settings, RotateCcw, Save, Check, AlertTriangle, Download, Upload } from 'lucide-react';
+import { InventorySettings, AdminAccount, AdminRole } from '../types/inventory';
+import { 
+  X, 
+  Settings, 
+  RotateCcw, 
+  Save, 
+  Check, 
+  AlertTriangle, 
+  Download, 
+  Upload, 
+  Database, 
+  RefreshCw, 
+  CheckCircle2,
+  Users,
+  UserPlus,
+  Trash2,
+  ShieldCheck,
+  ShieldAlert,
+  Sparkles
+} from 'lucide-react';
+import { checkFirebaseConnection, FirebaseConnectionStatus } from '../lib/firebase';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -10,6 +29,11 @@ interface SettingsModalProps {
   onResetData: () => void;
   onBackupJson: () => void;
   onRestoreJson: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  adminAccounts?: AdminAccount[];
+  currentAdmin?: AdminAccount | null;
+  onSaveAdminAccount?: (account: AdminAccount) => void;
+  onDeleteAdminAccount?: (id: string) => void;
+  onSignInGoogle?: () => Promise<void>;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -20,10 +44,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetData,
   onBackupJson,
   onRestoreJson,
+  adminAccounts = [],
+  currentAdmin,
+  onSaveAdminAccount,
+  onDeleteAdminAccount,
+  onSignInGoogle,
 }) => {
   const [form, setForm] = useState<InventorySettings>({ ...settings });
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [testingFirebase, setTestingFirebase] = useState(false);
+  const [firebaseStatus, setFirebaseStatus] = useState<FirebaseConnectionStatus | null>(null);
+
+  // Admin Account Creation Form State
+  const [showAddAdmin, setShowAddAdmin] = useState(false);
+  const [adminName, setAdminName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminRole, setAdminRole] = useState<AdminRole>('SUPER_ADMIN');
+  const [adminSuccessMsg, setAdminSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -37,13 +75,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }, 800);
   };
 
+  const handleTestFirebase = async () => {
+    setTestingFirebase(true);
+    try {
+      const res = await checkFirebaseConnection();
+      setFirebaseStatus(res);
+    } catch {
+      setFirebaseStatus({
+        connected: false,
+        message: 'Connection check timed out or failed.',
+      });
+    } finally {
+      setTestingFirebase(false);
+    }
+  };
+
+  const handleCreateAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminEmail.trim() || !adminName.trim()) return;
+
+    const newAccount: AdminAccount = {
+      id: `admin-${Date.now().toString(36)}`,
+      displayName: adminName.trim(),
+      email: adminEmail.trim().toLowerCase(),
+      role: adminRole,
+      status: 'ACTIVE',
+      createdAt: new Date().toISOString(),
+      lastLogin: new Date().toISOString(),
+    };
+
+    onSaveAdminAccount?.(newAccount);
+    setAdminSuccessMsg(`Admin account created for ${newAccount.displayName} (${newAccount.email})`);
+    setAdminName('');
+    setAdminEmail('');
+    setShowAddAdmin(false);
+    setTimeout(() => setAdminSuccessMsg(null), 3500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in duration-150">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in duration-150 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
           <div className="flex items-center gap-2">
             <Settings className="w-5 h-5 text-slate-800" />
-            <h2 className="text-sm font-bold text-slate-900">Store & Currency Configuration</h2>
+            <h2 className="text-sm font-bold text-slate-900">Store & Administrative Configuration</h2>
           </div>
           <button
             onClick={onClose}
@@ -53,30 +129,190 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs">
           {savedNotice && (
-            <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded flex items-center gap-2">
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg flex items-center gap-1.5 font-medium">
               <Check className="w-4 h-4 text-emerald-600" />
-              <span>Settings successfully updated!</span>
+              <span>Settings updated successfully!</span>
             </div>
           )}
 
-          {/* Currency, Exchange Rate & Tax */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {adminSuccessMsg && (
+            <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg flex items-center gap-1.5 font-medium">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              <span>{adminSuccessMsg}</span>
+            </div>
+          )}
+
+          {/* ============================================================= */}
+          {/* 1. ADMIN ACCOUNTS & ROLE-BASED ACCESS CONTROL                 */}
+          {/* ============================================================= */}
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-slate-700" />
+                <span className="font-bold text-slate-900 text-xs">Authorized Administrator Accounts</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddAdmin(!showAddAdmin)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-slate-800 bg-white hover:bg-slate-100 border border-slate-200 rounded-md cursor-pointer transition-colors shadow-2xs"
+              >
+                <UserPlus className="w-3 h-3 text-emerald-600" />
+                <span>{showAddAdmin ? 'Cancel' : 'Create Admin'}</span>
+              </button>
+            </div>
+
+            {/* Admin Accounts List */}
+            <div className="space-y-1.5">
+              {adminAccounts.map((acc) => {
+                const isCarl = acc.email.toLowerCase() === 'kerosicarl@gmail.com';
+                const isCurrent = currentAdmin?.email.toLowerCase() === acc.email.toLowerCase();
+
+                return (
+                  <div
+                    key={acc.id}
+                    className="p-2.5 bg-white border border-slate-200 rounded-lg flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-slate-900 text-white font-bold text-[11px] flex items-center justify-center shrink-0">
+                        {acc.displayName.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-slate-900 truncate">{acc.displayName}</span>
+                          {isCurrent && (
+                            <span className="px-1.5 py-0.2 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
+                              Current
+                            </span>
+                          )}
+                          {isCarl && (
+                            <span className="px-1.5 py-0.2 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
+                              Primary Owner
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-mono block truncate">{acc.email}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">
+                        {acc.role}
+                      </span>
+                      {!isCarl && onDeleteAdminAccount && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteAdminAccount(acc.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors cursor-pointer"
+                          title="Delete Admin Account"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Inline Add Admin Form */}
+            {showAddAdmin && (
+              <div className="p-3 bg-white border border-slate-300 rounded-lg space-y-2.5 animate-in fade-in">
+                <span className="font-bold text-slate-900 block text-xs">Provision New Admin Account</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Admin Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={adminName}
+                      onChange={(e) => setAdminName(e.target.value)}
+                      placeholder="e.g. John Kamau"
+                      className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Admin Email</label>
+                    <input
+                      type="email"
+                      required
+                      value={adminEmail}
+                      onChange={(e) => setAdminEmail(e.target.value)}
+                      placeholder="admin@panzerautoparts.co.ke"
+                      className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Role / Clearance</label>
+                  <select
+                    value={adminRole}
+                    onChange={(e) => setAdminRole(e.target.value as AdminRole)}
+                    className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded text-xs"
+                  >
+                    <option value="SUPER_ADMIN">Super Administrator (Full Ledger, Stock & Settings)</option>
+                    <option value="INVENTORY_MANAGER">Inventory Manager (Stock, Reordering & Pricing)</option>
+                    <option value="SALES_CLERK">Sales Counter Clerk (Point of Sale & Invoices)</option>
+                  </select>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddAdmin(false)}
+                    className="px-2.5 py-1 text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 rounded cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCreateAdmin}
+                    className="px-3 py-1 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded flex items-center gap-1 cursor-pointer"
+                  >
+                    <Check className="w-3 h-3 text-emerald-400" />
+                    <span>Save Admin Account</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ============================================================= */}
+          {/* 2. CURRENCY & EXCHANGE RATES                                  */}
+          {/* ============================================================= */}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Currency Symbol
+                Base Currency Symbol
               </label>
               <input
                 type="text"
                 required
                 value={form.currencySymbol}
                 onChange={(e) => setForm({ ...form, currencySymbol: e.target.value })}
-                placeholder="KSh, $, €"
                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold"
               />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Default: KSh</span>
             </div>
 
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Currency Code (ISO)
+              </label>
+              <input
+                type="text"
+                required
+                value={form.currency}
+                onChange={(e) => setForm({ ...form, currency: e.target.value.toUpperCase() })}
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold"
+              />
+              <span className="text-[10px] text-slate-400 mt-0.5 block">Default: KES</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
                 USD to KSh Rate
@@ -108,10 +344,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Business Details for Invoices */}
+          {/* ============================================================= */}
+          {/* 3. BUSINESS DETAILS FOR INVOICES                              */}
+          {/* ============================================================= */}
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Business / Workshop Name
+              Business / Company Name
             </label>
             <input
               type="text"
@@ -149,13 +387,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                KRA Tax PIN (e-TIMS)
+                Official Business Email
               </label>
               <input
-                type="text"
-                value={form.businessTaxId}
-                onChange={(e) => setForm({ ...form, businessTaxId: e.target.value })}
-                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+                type="email"
+                value={form.businessEmail || ''}
+                onChange={(e) => setForm({ ...form, businessEmail: e.target.value })}
+                placeholder="orders@panzerautoparts.co.ke"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
               />
             </div>
           </div>
@@ -203,19 +442,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
-              Official Company Email
-            </label>
-            <input
-              type="email"
-              value={form.businessEmail || ''}
-              onChange={(e) => setForm({ ...form, businessEmail: e.target.value })}
-              placeholder="orders@apexspares.co.ke"
-              className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
-            />
-          </div>
-
-          <div>
-            <label className="block font-semibold text-slate-700 mb-1">
               Admin Access Code (Double-click logo shortcut)
             </label>
             <input
@@ -226,11 +452,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono tracking-widest text-slate-900"
             />
             <span className="text-[10px] text-slate-400 mt-1 block">
-              Default is 1234. Used when double-clicking the PartPulse logo to enter admin mode.
+              Default is 1234. Used when double-clicking the Panzer Autoparts logo to enter admin mode.
             </span>
           </div>
 
-          {/* Data Backup & Restore */}
+          {/* ============================================================= */}
+          {/* 4. CLOUD DATABASE SYNCHRONIZATION                             */}
+          {/* ============================================================= */}
+          <div className="pt-3 border-t border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Cloud Database Synchronization</span>
+              </span>
+              <button
+                type="button"
+                onClick={handleTestFirebase}
+                disabled={testingFirebase}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded border border-slate-200 cursor-pointer transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${testingFirebase ? 'animate-spin' : ''}`} />
+                <span>{testingFirebase ? 'Testing Connection...' : 'Test Database Connection'}</span>
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-600">
+                <span className="text-slate-500">Live Status:</span>
+                <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                  <span>Cloud Database Active</span>
+                </span>
+              </div>
+
+              {firebaseStatus && (
+                <div className={`mt-2 p-2.5 rounded-lg border flex items-center gap-2 ${
+                  firebaseStatus.connected
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}>
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span className="font-medium text-xs">{firebaseStatus.message}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ============================================================= */}
+          {/* 5. DATA BACKUP & RESTORE                                      */}
+          {/* ============================================================= */}
           <div className="pt-3 border-t border-slate-200">
             <span className="block font-semibold text-slate-700 mb-2">
               Database Backup & Portability
@@ -258,7 +528,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Reset Demo Data */}
+          {/* ============================================================= */}
+          {/* 6. RESET DEMO DATA                                            */}
+          {/* ============================================================= */}
           <div className="pt-3 border-t border-slate-200">
             <span className="block font-semibold text-rose-700 mb-1">
               Reset System Data
@@ -305,7 +577,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             )}
           </div>
 
-          <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+          <div className="pt-3 border-t border-slate-100 flex justify-end gap-2 shrink-0">
             <button
               type="button"
               onClick={onClose}

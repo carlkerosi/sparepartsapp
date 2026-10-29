@@ -215,7 +215,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                   <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-950 p-3.5 rounded-lg border border-slate-800 text-left space-y-1">
                     <p className="text-emerald-400 font-bold">Do you want to pay {formatCurrency(totalInc, currencySymbol)}?</p>
-                    <p className="text-slate-300">To: APEX RANGE ROVER SPARES (KENYA)</p>
+                    <p className="text-slate-300">To: PANZER AUTOPARTS LIMITED</p>
                     <p className="text-slate-400 text-[10px]">Till / Paybill: 849204 · Acc: {items[0]?.part?.partNumber || 'PARTS'}</p>
                     <p className="text-slate-400 text-[10px]">Sent to: <span className="text-white font-semibold">{customerPhone}</span></p>
                   </div>

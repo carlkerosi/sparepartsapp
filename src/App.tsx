@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { SparePart, SaleRecord, StockMovement, InventorySettings, MovementType, Supplier, SaleItem } from './types/inventory';
+import { SparePart, SaleRecord, StockMovement, InventorySettings, MovementType, Supplier, SaleItem, AdminAccount } from './types/inventory';
 import { 
   loadParts, 
   saveParts, 
@@ -11,6 +11,8 @@ import {
   saveSettings, 
   loadSuppliers,
   saveSuppliers,
+  loadAdminAccounts,
+  saveAdminAccounts,
   resetAllData, 
   exportPartsCsv, 
   exportSalesCsv 
@@ -21,12 +23,19 @@ import {
   subscribeParts, 
   subscribeSales, 
   subscribeMovements,
+  subscribeSettings,
+  subscribeAdminAccounts,
   saveSupplierToFirestore,
   deleteSupplierFromFirestore,
   savePartToFirestore,
   deletePartFromFirestore,
   saveSaleToFirestore,
-  saveMovementToFirestore
+  saveMovementToFirestore,
+  saveSettingsToFirestore,
+  saveAdminAccountToFirestore,
+  deleteAdminAccountFromFirestore,
+  signInWithGoogleAdmin,
+  signOutAdmin
 } from './services/firebaseService';
 import { calculateInventoryMetrics, calculateSalesMetrics, calculateIncFromEx } from './utils/calculations';
 import { Header, ActiveTab } from './components/Header';
@@ -63,6 +72,11 @@ export default function App() {
   const [sales, setSales] = useState<SaleRecord[]>(() => loadSales());
   const [movements, setMovements] = useState<StockMovement[]>(() => loadMovements());
   const [settings, setSettings] = useState<InventorySettings>(() => loadSettings());
+  const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(() => loadAdminAccounts());
+  const [currentAdmin, setCurrentAdmin] = useState<AdminAccount | null>(() => {
+    const list = loadAdminAccounts();
+    return list.find((a) => a.email.toLowerCase() === 'kerosicarl@gmail.com') || list[0] || null;
+  });
 
   // Application View Mode: Customer 'storefront' vs Admin 'admin'
   const [viewMode, setViewMode] = useState<'storefront' | 'admin'>('storefront');
@@ -79,7 +93,7 @@ export default function App() {
   const [storefrontSearch, setStorefrontSearch] = useState<string>('');
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('partpulse_cart_v4');
+      const saved = localStorage.getItem('panzer_cart_v5');
       if (!saved) return [];
       const parsed = JSON.parse(saved);
       if (!Array.isArray(parsed)) return [];
@@ -163,11 +177,33 @@ export default function App() {
       (err) => console.warn('Using local movements cache:', err)
     );
 
+    const unsubSettings = subscribeSettings(
+      (newSettings) => {
+        setSettings(newSettings);
+        saveSettings(newSettings);
+      },
+      (err) => console.warn('Using local settings cache:', err)
+    );
+
+    const unsubAdmins = subscribeAdminAccounts(
+      (newAdmins) => {
+        setAdminAccounts(newAdmins);
+        saveAdminAccounts(newAdmins);
+        setCurrentAdmin((prev) => {
+          if (!prev) return newAdmins.find((a) => a.email.toLowerCase() === 'kerosicarl@gmail.com') || newAdmins[0] || null;
+          return newAdmins.find((a) => a.id === prev.id) || prev;
+        });
+      },
+      (err) => console.warn('Using local admins cache:', err)
+    );
+
     return () => {
       unsubSuppliers();
       unsubParts();
       unsubSales();
       unsubMovements();
+      unsubSettings();
+      unsubAdmins();
     };
   }, []);
 
@@ -195,7 +231,7 @@ export default function App() {
   // Persist customer cart
   useEffect(() => {
     try {
-      localStorage.setItem('partpulse_cart_v4', JSON.stringify(cartItems));
+      localStorage.setItem('panzer_cart_v5', JSON.stringify(cartItems));
     } catch (e) {
       console.warn('Could not persist cart:', e);
     }
@@ -786,6 +822,85 @@ export default function App() {
     setSettings(loadSettings());
   }, []);
 
+  // Save Settings to Firestore and local storage
+  const handleSaveSettings = useCallback(
+    async (newSettings: InventorySettings) => {
+      setSettings(newSettings);
+      saveSettings(newSettings);
+      try {
+        await saveSettingsToFirestore(newSettings);
+      } catch (err) {
+        console.warn('Firebase settings save cached:', err);
+      }
+    },
+    []
+  );
+
+  // Admin Account Handlers
+  const handleSaveAdminAccount = useCallback(
+    async (account: AdminAccount) => {
+      setAdminAccounts((prev) => {
+        const existing = prev.findIndex((a) => a.id === account.id || a.email.toLowerCase() === account.email.toLowerCase());
+        let updated: AdminAccount[];
+        if (existing >= 0) {
+          updated = [...prev];
+          updated[existing] = account;
+        } else {
+          updated = [account, ...prev];
+        }
+        saveAdminAccounts(updated);
+        return updated;
+      });
+
+      if (!currentAdmin || currentAdmin.id === account.id || currentAdmin.email.toLowerCase() === account.email.toLowerCase()) {
+        setCurrentAdmin(account);
+      }
+
+      showToast(`Admin account "${account.displayName}" saved.`);
+
+      try {
+        await saveAdminAccountToFirestore(account);
+      } catch (err) {
+        console.warn('Firebase admin account save cached:', err);
+      }
+    },
+    [currentAdmin, showToast]
+  );
+
+  const handleDeleteAdminAccount = useCallback(
+    async (accountId: string) => {
+      const target = adminAccounts.find((a) => a.id === accountId);
+      if (!target) return;
+      if (target.email.toLowerCase() === 'kerosicarl@gmail.com') {
+        showToast('Primary owner Carl Kerosi cannot be removed.', 'error');
+        return;
+      }
+      if (confirm(`Remove administrator "${target.displayName} (${target.email})"?`)) {
+        const updated = adminAccounts.filter((a) => a.id !== accountId);
+        setAdminAccounts(updated);
+        saveAdminAccounts(updated);
+        showToast(`Administrator ${target.displayName} removed.`);
+        try {
+          await deleteAdminAccountFromFirestore(accountId);
+        } catch (err) {
+          console.warn('Firebase admin delete cached:', err);
+        }
+      }
+    },
+    [adminAccounts, showToast]
+  );
+
+  const handleSignInGoogleAdmin = useCallback(async () => {
+    try {
+      const { adminAccount } = await signInWithGoogleAdmin();
+      setCurrentAdmin(adminAccount);
+      showToast(`Signed in as ${adminAccount.displayName} (${adminAccount.role})`);
+    } catch (err) {
+      console.warn('Google admin login error:', err);
+      throw err;
+    }
+  }, [showToast]);
+
   // Backup JSON
   const handleBackupJson = useCallback(() => {
     const bundle = {
@@ -909,6 +1024,7 @@ export default function App() {
             onOpenSettings={() => setIsSettingsModalOpen(true)}
             onExitToStore={() => setViewMode('storefront')}
             lowStockCount={inventoryMetrics.lowStockCount}
+            currentAdmin={currentAdmin}
           />
 
           {/* Main Content Viewport */}
@@ -1065,10 +1181,14 @@ export default function App() {
         isOpen={isAdminAccessModalOpen}
         onClose={() => setIsAdminAccessModalOpen(false)}
         correctCode={settings.adminAccessCode || '1234'}
-        onUnlock={() => {
+        adminAccounts={adminAccounts}
+        onUnlock={(admin) => {
+          if (admin) setCurrentAdmin(admin);
           setIsAdminAccessModalOpen(false);
           setViewMode('admin');
         }}
+        onSignInGoogle={handleSignInGoogleAdmin}
+        onCreateAdminAccount={handleSaveAdminAccount}
       />
 
       {/* Storefront Slide-over Cart Drawer */}
@@ -1205,10 +1325,15 @@ export default function App() {
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         settings={settings}
-        onSaveSettings={setSettings}
+        onSaveSettings={handleSaveSettings}
         onResetData={handleResetData}
         onBackupJson={handleBackupJson}
         onRestoreJson={handleRestoreJson}
+        adminAccounts={adminAccounts}
+        currentAdmin={currentAdmin}
+        onSaveAdminAccount={handleSaveAdminAccount}
+        onDeleteAdminAccount={handleDeleteAdminAccount}
+        onSignInGoogle={handleSignInGoogleAdmin}
       />
 
       {/* Toast Notification */}

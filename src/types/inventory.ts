@@ -110,3 +110,16 @@ export interface InventorySettings {
   adminAccessCode?: string; // Default '1234'
 }
 
+export type AdminRole = 'SUPER_ADMIN' | 'INVENTORY_MANAGER' | 'SALES_CLERK';
+
+export interface AdminAccount {
+  id: string;
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: string;
+  lastLogin?: string;
+  avatarUrl?: string;
+}
+

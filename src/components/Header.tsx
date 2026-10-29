@@ -13,6 +13,8 @@ import {
   Store
 } from 'lucide-react';
 
+import { AdminAccount } from '../types/inventory';
+
 export type ActiveTab = 'inventory' | 'pos' | 'sales' | 'movements' | 'reorder' | 'suppliers' | 'valuation';
 
 interface HeaderProps {
@@ -23,6 +25,7 @@ interface HeaderProps {
   onOpenSettings: () => void;
   onExitToStore?: () => void;
   lowStockCount: number;
+  currentAdmin?: AdminAccount | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -33,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onExitToStore,
   lowStockCount,
+  currentAdmin,
 }) => {
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-slate-200">
@@ -42,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Zone 1: Single Brand Wordmark */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm tracking-wider shadow-sm">
-              AR
+              PA
             </div>
             <div>
               <a 
@@ -50,7 +54,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={(e) => { e.preventDefault(); onTabChange('inventory'); }}
                 className="text-sm font-bold tracking-tight text-slate-900 hover:text-slate-800 transition-colors whitespace-nowrap block"
               >
-                Apex Range Rover Spares
+                Panzer Autoparts Limited
               </a>
               <span className="text-[10px] text-emerald-600 font-medium block">
                 Nairobi Central Hub · Admin
@@ -151,6 +155,27 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Zone 3: Primary Action & Settings */}
           <div className="flex items-center gap-2.5 shrink-0">
+            {currentAdmin && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title={`Active Admin: ${currentAdmin.displayName} (${currentAdmin.email}) - Click to manage team`}
+                className="hidden md:flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition-colors"
+              >
+                <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                  {currentAdmin.displayName.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="text-left leading-tight">
+                  <span className="font-semibold text-slate-800 text-[11px] block truncate max-w-[110px]">
+                    {currentAdmin.displayName}
+                  </span>
+                  <span className="text-[9px] text-emerald-700 font-bold uppercase tracking-wider block font-mono">
+                    {currentAdmin.role === 'SUPER_ADMIN' ? 'Super Admin' : currentAdmin.role}
+                  </span>
+                </div>
+              </button>
+            )}
+
             {onExitToStore && (
               <button
                 onClick={onExitToStore}
