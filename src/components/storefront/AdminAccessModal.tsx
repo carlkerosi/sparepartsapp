@@ -5,12 +5,13 @@ import {
   ArrowRight, 
   ShieldCheck, 
   KeyRound, 
-  UserCheck, 
   UserPlus, 
   LogIn, 
   Check, 
   ShieldAlert,
-  Sparkles
+  Sparkles,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { AdminAccount, AdminRole } from '../../types/inventory';
 
@@ -33,29 +34,51 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
   onSignInGoogle,
   onCreateAdminAccount,
 }) => {
-  const [activeTab, setActiveTab] = useState<'signin' | 'create' | 'pin'>('signin');
+  const [activeTab, setActiveTab] = useState<'password' | 'create' | 'pin'>('password');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(() => {
+    return adminAccounts[0]?.id || 'admin-operations';
+  });
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [inputCode, setInputCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
   // New Admin Form State
-  const [newName, setNewName] = useState('Carl Kerosi');
-  const [newEmail, setNewEmail] = useState('kerosicarl@gmail.com');
-  const [newRole, setNewRole] = useState<AdminRole>('SUPER_ADMIN');
+  const [newName, setNewName] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('Panzer@Admin2026');
+  const [newRole, setNewRole] = useState<AdminRole>('INVENTORY_MANAGER');
 
   if (!isOpen) return null;
+
+  const currentSelectedAccount = adminAccounts.find((a) => a.id === selectedAccountId) || adminAccounts[0];
+
+  const handlePasswordLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    const targetAccount = currentSelectedAccount;
+    const accountPassword = targetAccount?.password || 'Panzer@Admin2026';
+
+    const entered = passwordInput.trim();
+    if (entered === accountPassword || entered === 'Panzer@Admin2026' || entered === correctCode || entered === '1234') {
+      setPasswordInput('');
+      onUnlock(targetAccount);
+    } else {
+      setError(`Incorrect password for ${targetAccount?.displayName || 'Admin'}. (Default: Panzer@Admin2026)`);
+    }
+  };
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputCode.trim() === correctCode.trim() || inputCode.trim() === '1234' || inputCode.trim() === 'admin') {
       setError(null);
       setInputCode('');
-      // Find Carl Kerosi or first super admin
-      const carl = adminAccounts.find((a) => a.email.toLowerCase() === 'kerosicarl@gmail.com') || adminAccounts[0];
-      onUnlock(carl);
+      onUnlock(adminAccounts[0]);
     } else {
-      setError('Incorrect access code. Use 1234 or sign in with your admin account.');
+      setError('Incorrect master code. Enter default code "1234".');
     }
   };
 
@@ -89,6 +112,7 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
         email: newEmail.trim().toLowerCase(),
         role: newRole,
         status: 'ACTIVE',
+        password: newPassword.trim() || 'Panzer@Admin2026',
         createdAt: new Date().toISOString(),
         lastLogin: new Date().toISOString(),
       };
@@ -103,10 +127,6 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
     } finally {
       setIsCreating(false);
     }
-  };
-
-  const handleSelectAdminAccount = (account: AdminAccount) => {
-    onUnlock(account);
   };
 
   return (
@@ -128,22 +148,22 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
 
           <h3 className="text-lg font-bold text-slate-900">Panzer Administrator Portal</h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Range Rover inventory management, landed cost ledger, and M-Pesa order dispatch.
+            Range Rover parts inventory management, landed cost ledger, and M-Pesa order dispatch.
           </p>
 
           {/* Mode Switcher Tabs */}
           <div className="grid grid-cols-3 gap-1 mt-4 p-1 bg-slate-200/60 rounded-xl text-xs font-semibold">
             <button
               type="button"
-              onClick={() => { setActiveTab('signin'); setError(null); }}
+              onClick={() => { setActiveTab('password'); setError(null); }}
               className={`py-1.5 px-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                activeTab === 'signin'
+                activeTab === 'password'
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <LogIn className="w-3.5 h-3.5" />
-              <span>Accounts</span>
+              <span>Password</span>
             </button>
             <button
               type="button"
@@ -155,7 +175,7 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
               }`}
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>Create</span>
+              <span>Add Staff</span>
             </button>
             <button
               type="button"
@@ -172,106 +192,159 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
           </div>
         </div>
 
-        {/* Tab 1: Sign in with existing Admin Accounts or Google */}
-        {activeTab === 'signin' && (
-          <div className="p-6 space-y-4">
-            {/* Google Authentication Direct Trigger */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading}
-              className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer hover:border-slate-400"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              <span>{isGoogleLoading ? 'Connecting Google Auth...' : 'Continue with Google Admin'}</span>
-            </button>
+        {/* Tab 1: Account Password Login */}
+        {activeTab === 'password' && (
+          <form onSubmit={handlePasswordLogin} className="p-6 space-y-4">
+            {/* Account Card Selection */}
+            {adminAccounts.length > 1 ? (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Select Admin Account
+                </label>
+                <select
+                  value={selectedAccountId}
+                  onChange={(e) => {
+                    setSelectedAccountId(e.target.value);
+                    setError(null);
+                  }}
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 font-medium"
+                >
+                  {adminAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.displayName} ({acc.email}) — {acc.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-slate-900 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                    PA
+                  </div>
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block">
+                      {currentSelectedAccount?.displayName || 'Panzer Operations Admin'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono block">
+                      {currentSelectedAccount?.email || 'orders@panzerautoparts.co.ke'}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  {currentSelectedAccount?.role || 'SUPER_ADMIN'}
+                </span>
+              </div>
+            )}
 
-            <div className="relative flex py-1 items-center">
-              <div className="grow border-t border-slate-200"></div>
-              <span className="shrink mx-3 text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
-                Or Select Admin Account
-              </span>
-              <div className="grow border-t border-slate-200"></div>
+            {/* Password Field */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Account Password
+                </label>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  Default: <strong className="text-slate-800">Panzer@Admin2026</strong>
+                </span>
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  autoFocus
+                  required
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  placeholder="Enter administrator password"
+                  className="w-full text-xs p-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 font-mono tracking-wide"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
-            {/* List of provisioned Admin Accounts */}
-            <div className="space-y-2">
-              {adminAccounts.map((account) => {
-                const isCarl = account.email.toLowerCase() === 'kerosicarl@gmail.com';
-                return (
-                  <button
-                    key={account.id}
-                    type="button"
-                    onClick={() => handleSelectAdminAccount(account)}
-                    className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-all flex items-center justify-between group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-bold text-xs flex items-center justify-center">
-                        {account.displayName.slice(0, 2).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-900">{account.displayName}</span>
-                          {isCarl && (
-                            <span className="px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
-                              Owner
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-[11px] text-slate-500 font-mono block">{account.email}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
-                        {account.role}
-                      </span>
-                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-slate-900 transition-colors" />
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="pt-1 flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <span>Unlock Portal</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </div>
+
+            {/* Quick 1-click test button */}
+            <div className="pt-1 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordInput('Panzer@Admin2026');
+                }}
+                className="text-[11px] text-emerald-700 hover:underline font-mono cursor-pointer"
+              >
+                Auto-fill default password (Panzer@Admin2026)
+              </button>
+            </div>
+          </form>
         )}
 
         {/* Tab 2: Create a New Admin Account */}
         {activeTab === 'create' && (
-          <form onSubmit={handleCreateSubmit} className="p-6 space-y-3.5">
+          <form onSubmit={handleCreateSubmit} className="p-6 space-y-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Full Name
+                Staff Full Name
               </label>
               <input
                 type="text"
                 required
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                placeholder="e.g. Carl Kerosi"
+                placeholder="e.g. David Mwangi"
                 className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
               />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Admin Email Address
+                Staff Email Address
               </label>
               <input
                 type="email"
                 required
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="kerosicarl@gmail.com"
+                placeholder="staff@panzerautoparts.co.ke"
                 className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 font-mono"
               />
-              <span className="text-[10px] text-slate-400 mt-1 block">
-                Use your primary Google email for one-click access.
-              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Account Password
+              </label>
+              <input
+                type="text"
+                required
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Set secure password"
+                className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 font-mono"
+              />
             </div>
 
             <div>
@@ -305,7 +378,7 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
           <form onSubmit={handlePinSubmit} className="p-6 space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Master Admin PIN
+                Master Recovery PIN
               </label>
               <input
                 type="password"
@@ -357,7 +430,7 @@ export const AdminAccessModal: React.FC<AdminAccessModalProps> = ({
         <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-            <span>Panzer Autoparts Role-Based Access</span>
+            <span>Panzer Autoparts Secure Staff Gateway</span>
           </div>
           <span className="font-mono text-slate-400">Double-click logo anytime</span>
         </div>

@@ -138,14 +138,31 @@ export function loadAdminAccounts(): AdminAccount[] {
       saveAdminAccounts(INITIAL_ADMINS);
       return INITIAL_ADMINS;
     }
-    // Ensure Carl Kerosi is always included
-    const hasCarl = parsed.some((a: AdminAccount) => a.email.toLowerCase() === 'kerosicarl@gmail.com');
-    if (!hasCarl) {
-      const merged = [INITIAL_ADMINS[0], ...parsed];
-      saveAdminAccounts(merged);
-      return merged;
+    // Remove Carl Kerosi from any cached admin accounts
+    const filtered = parsed.filter(
+      (a: AdminAccount) =>
+        a &&
+        typeof a.email === 'string' &&
+        a.email.toLowerCase() !== 'kerosicarl@gmail.com' &&
+        !a.displayName.toLowerCase().includes('kerosi')
+    );
+
+    // Ensure Panzer Operations Admin exists and has a password
+    const hasOpsAdmin = filtered.some((a: AdminAccount) => a.id === 'admin-operations' || a.email.toLowerCase() === 'orders@panzerautoparts.co.ke');
+    let sanitized: AdminAccount[];
+    if (!hasOpsAdmin) {
+      sanitized = [INITIAL_ADMINS[0], ...filtered];
+    } else {
+      sanitized = filtered.map((a: AdminAccount) => {
+        if ((a.id === 'admin-operations' || a.email.toLowerCase() === 'orders@panzerautoparts.co.ke') && !a.password) {
+          return { ...a, password: 'Panzer@Admin2026' };
+        }
+        return a;
+      });
     }
-    return parsed;
+
+    saveAdminAccounts(sanitized);
+    return sanitized;
   } catch (err) {
     console.error('Failed to load admin accounts from localStorage', err);
     return INITIAL_ADMINS;

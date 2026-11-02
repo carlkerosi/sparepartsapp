@@ -10,12 +10,15 @@ import {
   MapPin, 
   Car, 
   ShieldCheck, 
-  ArrowRight,
-  Smartphone,
-  Banknote,
-  RotateCw,
-  Clock,
-  Check
+  Smartphone, 
+  Banknote, 
+  Building2, 
+  RotateCw, 
+  Clock, 
+  Check, 
+  Printer, 
+  Receipt,
+  ArrowRight
 } from 'lucide-react';
 import { CartItem } from './CartDrawer';
 
@@ -50,16 +53,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [customerPhone, setCustomerPhone] = useState('0722 849 204');
   const [deliveryAddress, setDeliveryAddress] = useState('Karen Workshop, Nairobi');
   const [vehicleRef, setVehicleRef] = useState('Range Rover Sport L494 3.0 (KDA 482B)');
-  const [paymentMethod, setPaymentMethod] = useState<'Mobile Money' | 'Cash'>('Mobile Money');
+  const [paymentMethod, setPaymentMethod] = useState<'Mobile Money' | 'Cash' | 'Bank Transfer'>('Mobile Money');
   const [cashTendered, setCashTendered] = useState<string>('');
+  const [bankReference, setBankReference] = useState('');
   const [notes, setNotes] = useState('');
   
-  // STK Push Simulation States
+  // Payment confirmation states
   const [isStkPromptActive, setIsStkPromptActive] = useState(false);
   const [stkCountdown, setStkCountdown] = useState(25);
-  const [stkPinInput, setStkPinInput] = useState('');
   const [stkStatus, setStkStatus] = useState<'prompting' | 'processing' | 'approved'>('prompting');
   const [generatedMpesaCode, setGeneratedMpesaCode] = useState('');
+  
+  // Explicit payment confirmation modal for Cash / Bank Transfer
+  const [isConfirmingOfflinePayment, setIsConfirmingOfflinePayment] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,7 +73,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const totalInc = items.reduce((sum, item) => sum + (item?.part?.retailPriceInc || 0) * (item?.quantity || 0), 0);
   const totalEx = items.reduce((sum, item) => sum + (item?.part?.retailPriceEx || 0) * (item?.quantity || 0), 0);
-  const totalLandedCogs = items.reduce((sum, item) => sum + (item?.part?.unitCostLanded || 0) * (item?.quantity || 0), 0);
+  const taxAmount = totalInc - totalEx;
 
   // Countdown timer for M-Pesa STK Push
   useEffect(() => {
@@ -88,10 +94,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     return `S${randLetters}${randDigits}`;
   };
 
-  const handleStartStkPrompt = (e: React.FormEvent) => {
+  const handleStartPaymentFlow = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim() || !deliveryAddress.trim()) {
-      setErrorMessage('Please fill in your name, M-Pesa phone number, and delivery address.');
+      setErrorMessage('Please fill in your name, contact phone number, and delivery address.');
       return;
     }
     setErrorMessage(null);
@@ -100,10 +106,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setIsStkPromptActive(true);
       setStkCountdown(25);
       setStkStatus('prompting');
-      setStkPinInput('');
     } else {
-      // Direct Cash flow
-      processFinalOrder();
+      // Open explicit payment confirmation dialog for Cash / Bank Transfer
+      setIsConfirmingOfflinePayment(true);
     }
   };
 
@@ -114,10 +119,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     setTimeout(async () => {
       setStkStatus('approved');
+      // Payment confirmed! Proceed to generate official receipt
       setTimeout(async () => {
         await processFinalOrder(code);
-      }, 1000);
-    }, 1200);
+      }, 900);
+    }, 1100);
+  };
+
+  const handleConfirmOfflinePayment = async () => {
+    setIsConfirmingOfflinePayment(false);
+    await processFinalOrder();
   };
 
   const processFinalOrder = async (mpesaCode?: string) => {
@@ -132,7 +143,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         deliveryAddress: deliveryAddress.trim(),
         paymentMethod,
         mpesaReceiptNumber: finalMpesaCode,
-        notes: notes.trim() || (paymentMethod === 'Cash' && cashTendered ? `Customer tenders KSh ${cashTendered}` : undefined),
+        notes: notes.trim() || (paymentMethod === 'Cash' && cashTendered ? `Cash tendered: KSh ${cashTendered}` : paymentMethod === 'Bank Transfer' && bankReference ? `Bank Ref: ${bankReference}` : undefined),
       });
 
       if (sale) {
@@ -150,9 +161,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handleCloseAndReset = () => {
     setConfirmedSale(null);
     setIsStkPromptActive(false);
+    setIsConfirmingOfflinePayment(false);
     setStkStatus('prompting');
     setErrorMessage(null);
     onClose();
+  };
+
+  const handlePrintReceipt = () => {
+    window.print();
   };
 
   const parsedCashTendered = parseFloat(cashTendered.replace(/,/g, '')) || 0;
@@ -160,9 +176,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative">
+      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative">
         {/* ========================================================================= */}
-        {/* 1. M-PESA STK PUSH INTERACTIVE PROMPT MODAL                               */}
+        {/* 1. M-PESA STK PUSH PAYMENT VERIFICATION MODAL                             */}
         {/* ========================================================================= */}
         {isStkPromptActive ? (
           <div className="p-6 sm:p-8 space-y-6 bg-slate-950 text-white relative">
@@ -175,13 +191,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-400 block font-mono">
                     LIPA NA M-PESA ONLINE
                   </span>
-                  <h3 className="text-sm font-bold text-white">STK Push Verification</h3>
+                  <h3 className="text-sm font-bold text-white">Payment Confirmation Required</h3>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsStkPromptActive(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -193,12 +209,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <Check className="w-8 h-8" />
                 </div>
                 <div>
-                  <h4 className="text-lg font-bold text-white">M-Pesa Payment Received!</h4>
-                  <p className="text-xs text-slate-400 mt-1 font-mono">
-                    Receipt: <strong className="text-emerald-400">{generatedMpesaCode}</strong>
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs border border-emerald-500/40 mb-2">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Payment Confirmed by Safaricom</span>
+                  </div>
+                  <h4 className="text-lg font-bold text-white">Payment Received Successfully</h4>
+                  <p className="text-xs text-slate-300 mt-1 font-mono">
+                    M-Pesa Transaction Ref: <strong className="text-emerald-400 font-bold">{generatedMpesaCode}</strong>
                   </p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Amount: {formatCurrency(totalInc, currencySymbol)} confirmed. Finalizing order dispatch...
+                  <p className="text-xs text-slate-400 mt-1">
+                    Amount: <strong className="text-white">{formatCurrency(totalInc, currencySymbol)}</strong> confirmed. Generating official receipt...
                   </p>
                 </div>
               </div>
@@ -213,116 +233,344 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <span>Awaiting PIN on phone: {stkCountdown}s remaining</span>
                   </div>
 
-                  <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-950 p-3.5 rounded-lg border border-slate-800 text-left space-y-1">
-                    <p className="text-emerald-400 font-bold">Do you want to pay {formatCurrency(totalInc, currencySymbol)}?</p>
-                    <p className="text-slate-300">To: PANZER AUTOPARTS LIMITED</p>
-                    <p className="text-slate-400 text-[10px]">Till / Paybill: 849204 · Acc: {items[0]?.part?.partNumber || 'PARTS'}</p>
-                    <p className="text-slate-400 text-[10px]">Sent to: <span className="text-white font-semibold">{customerPhone}</span></p>
+                  <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-950 p-4 rounded-lg border border-slate-800 text-left space-y-1.5">
+                    <p className="text-emerald-400 font-bold text-sm">Do you want to pay {formatCurrency(totalInc, currencySymbol)}?</p>
+                    <p className="text-slate-200">To: <strong className="text-white">PANZER AUTOPARTS LIMITED</strong></p>
+                    <p className="text-slate-400 text-[11px]">Paybill: <span className="text-white font-mono">849204</span> · Acc: <span className="text-white font-mono">{items[0]?.part?.partNumber || 'RANGE-ROVER'}</span></p>
+                    <p className="text-slate-400 text-[11px]">Sent to mobile: <span className="text-emerald-300 font-semibold">{customerPhone}</span></p>
                   </div>
 
-                  {/* Simulated PIN entry buttons */}
+                  {/* Simulated PIN entry button */}
                   <div className="mt-4 pt-3 border-t border-slate-800 flex flex-col items-center gap-2">
                     <span className="text-[11px] text-slate-400">Simulate customer entering M-Pesa PIN on handset:</span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={handleSimulatePinAuthorize}
-                        disabled={stkStatus === 'processing'}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
-                      >
-                        {stkStatus === 'processing' ? (
-                          <>
-                            <RotateCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Authorizing PIN...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Authorize PIN & Confirm Payment</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleSimulatePinAuthorize}
+                      disabled={stkStatus === 'processing'}
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95"
+                    >
+                      {stkStatus === 'processing' ? (
+                        <>
+                          <RotateCw className="w-4 h-4 animate-spin" />
+                          <span>Verifying M-Pesa Payment...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 text-emerald-200" />
+                          <span>Enter PIN & Confirm Payment</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
 
-                <div className="text-center text-[11px] text-slate-500">
-                  Tip: A real Safaricom USSD prompt has been simulated. In production, this integrates via Daraja STK Push API.
+                <div className="text-center text-[11px] text-slate-400">
+                  Receipt will be generated immediately after Safaricom payment confirmation.
                 </div>
               </div>
             )}
           </div>
+        ) : isConfirmingOfflinePayment ? (
+          /* ========================================================================= */
+          /* 1B. OFFLINE PAYMENT CONFIRMATION DIALOG (CASH / BANK TRANSFER)            */
+          /* ========================================================================= */
+          <div className="p-6 sm:p-8 space-y-5 bg-white text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-slate-900 text-white rounded-lg">
+                  {paymentMethod === 'Cash' ? <Banknote className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Payment Confirmation</h3>
+                  <p className="text-xs text-slate-500">Confirm payment received before issuing official receipt</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsConfirmingOfflinePayment(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3 text-xs">
+              <div className="flex justify-between items-center text-sm font-bold text-slate-900 pb-2 border-b border-slate-200">
+                <span>Total Amount Due:</span>
+                <span className="font-mono text-emerald-700 text-base">{formatCurrency(totalInc, currencySymbol)}</span>
+              </div>
+
+              {paymentMethod === 'Cash' ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-slate-700">Cash Tendered by Customer:</span>
+                    <input
+                      type="number"
+                      value={cashTendered}
+                      onChange={(e) => setCashTendered(e.target.value)}
+                      placeholder={`e.g. ${totalInc}`}
+                      className="w-36 p-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded text-right focus:outline-none"
+                    />
+                  </div>
+                  {parsedCashTendered >= totalInc && (
+                    <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2 rounded border border-emerald-200">
+                      <span>Change Due to Customer:</span>
+                      <span className="font-mono">{formatCurrency(cashChangeDue, currencySymbol)}</span>
+                    </div>
+                  )}
+                  <p className="text-[11px] text-slate-500">
+                    Payment will be confirmed as collected upon dispatch or workshop counter collection.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
+                    <div className="text-slate-500">Panzer Autoparts Limited Bank Wire:</div>
+                    <div className="font-bold text-slate-900">NCBA Bank Kenya · Acc: 8492019482</div>
+                    <div className="text-slate-600">Branch: Industrial Area, Nairobi</div>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      Bank Confirmation Ref / Slip # (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={bankReference}
+                      onChange={(e) => setBankReference(e.target.value.toUpperCase())}
+                      placeholder="e.g. EFT-984210"
+                      className="w-full p-1.5 text-xs font-mono bg-white border border-slate-300 rounded uppercase"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsConfirmingOfflinePayment(false)}
+                className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 rounded-lg cursor-pointer"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                disabled={isSubmitting || (paymentMethod === 'Cash' && parsedCashTendered > 0 && parsedCashTendered < totalInc)}
+                onClick={handleConfirmOfflinePayment}
+                className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Check className="w-4 h-4 text-emerald-400" />
+                <span>{isSubmitting ? 'Generating Receipt...' : 'Confirm Payment & Issue Receipt'}</span>
+              </button>
+            </div>
+          </div>
         ) : confirmedSale ? (
           /* ========================================================================= */
-          /* 2. ORDER CONFIRMATION VIEW                                                */
+          /* 2. OFFICIAL RECEIPT VIEW (GENERATED DIRECTLY AFTER PAYMENT CONFIRMATION)  */
           /* ========================================================================= */
-          <div className="p-8 text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-              <CheckCircle className="w-10 h-10" />
-            </div>
-
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">Order Confirmed Successfully!</h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Your Range Rover spare parts order has been logged into our Industrial Area fulfillment system.
-              </p>
-            </div>
-
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-left space-y-2 font-mono">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Invoice Number:</span>
-                <span className="font-bold text-slate-900">{confirmedSale.invoiceNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Customer:</span>
-                <span className="text-slate-800">{confirmedSale.customerName}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Payment Method:</span>
-                <span className="font-bold text-emerald-700">
-                  {confirmedSale.paymentMethod === 'Mobile Money' ? 'Lipa na M-Pesa (STK Push)' : 'Cash on Delivery / Pickup'}
+          <div className="max-h-[85vh] flex flex-col">
+            {/* Top Bar with Print Controls */}
+            <div className="px-6 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide">
+                  Official Receipt Generated
                 </span>
+                <span className="text-slate-300">·</span>
+                <span className="font-mono text-xs font-semibold text-slate-700">{confirmedSale.invoiceNumber}</span>
               </div>
-              {confirmedSale.mpesaReceiptNumber && (
-                <div className="flex justify-between bg-emerald-50 p-1.5 rounded border border-emerald-200 text-emerald-800 font-bold">
-                  <span>M-Pesa Receipt Code:</span>
-                  <span>{confirmedSale.mpesaReceiptNumber}</span>
-                </div>
-              )}
-              {confirmedSale.vehicleRef && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Vehicle / Fitment:</span>
-                  <span className="text-slate-800">{confirmedSale.vehicleRef}</span>
-                </div>
-              )}
-              <div className="flex justify-between pt-1 border-t border-slate-200 text-sm font-bold text-slate-900">
-                <span>Total Order Amount:</span>
-                <span>{formatCurrency(confirmedSale.totalInc, currencySymbol)}</span>
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-500 font-normal">
-                <span>Total Landed COGS:</span>
-                <span>{formatCurrency(confirmedSale.totalCogsLanded, currencySymbol)}</span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrintReceipt}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Receipt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseAndReset}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+            {/* Printable Receipt Body */}
+            <div className="p-6 sm:p-8 overflow-y-auto space-y-4 text-xs" id="printable-receipt">
+              {/* Payment Verified Stamp Banner */}
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
+                    <Check className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-emerald-950 uppercase tracking-wide text-[11px] block">
+                      Payment Confirmed & Verified
+                    </span>
+                    <span className="text-[11px] text-emerald-800">
+                      Paid via <strong>{confirmedSale.paymentMethod}</strong>
+                      {confirmedSale.mpesaReceiptNumber && (
+                        <> · M-Pesa Ref: <strong className="font-mono">{confirmedSale.mpesaReceiptNumber}</strong></>
+                      )}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-[10px] text-emerald-800 block uppercase font-bold">Amount Paid</span>
+                  <span className="font-mono text-sm font-bold text-emerald-950">
+                    {formatCurrency(confirmedSale.totalInc, currencySymbol)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Company & Invoice Header */}
+              <div className="flex items-start justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <h1 className="text-base font-bold text-slate-900">PANZER AUTOPARTS LIMITED</h1>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Nairobi Industrial Area · Range Rover OEM Spares Specialists
+                  </p>
+                  <div className="text-[11px] text-slate-500 mt-0.5 space-y-0.5">
+                    <div>Phone: <strong className="font-mono text-slate-700">+254 722 849 204</strong></div>
+                    <div>Email: <span className="text-slate-700">orders@panzerautoparts.co.ke</span></div>
+                    <div className="text-emerald-800 font-mono text-[10px]">Lipa na M-Pesa Paybill: 849204 · Till: 948201</div>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                    CUSTOMER TAX RECEIPT
+                  </span>
+                  <div className="text-sm font-bold font-mono text-slate-900 mt-0.5">
+                    {confirmedSale.invoiceNumber}
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                    {new Date(confirmedSale.timestamp).toLocaleString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Billed To & Vehicle Info */}
+              <div className="grid grid-cols-2 gap-3 py-2 border-b border-slate-200">
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-semibold">Customer Details</span>
+                  <div className="font-bold text-slate-900 text-xs mt-0.5">{confirmedSale.customerName}</div>
+                  <div className="text-slate-500 text-[11px]">Contact: <span className="font-mono">{confirmedSale.customerPhone}</span></div>
+                  {confirmedSale.deliveryAddress && (
+                    <div className="text-slate-500 text-[11px] mt-0.5">
+                      Dispatch Address: {confirmedSale.deliveryAddress}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-right">
+                  <span className="text-slate-400 block text-[10px] uppercase font-semibold">Vehicle / Fitment</span>
+                  <div className="font-semibold text-slate-800 text-xs mt-0.5">
+                    {confirmedSale.vehicleRef || 'Range Rover Genuine'}
+                  </div>
+                  <div className="text-slate-500 text-[11px] mt-0.5">
+                    Payment Method: <span className="font-semibold text-slate-800">{confirmedSale.paymentMethod}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Itemized Purchased Parts Table */}
+              <table className="w-full text-xs text-left my-2 border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 font-semibold text-[11px]">
+                    <th className="py-1.5 px-1">Spare Part / Description</th>
+                    <th className="py-1.5 px-2 text-center w-12">Qty</th>
+                    <th className="py-1.5 px-2 text-right">Unit Price</th>
+                    <th className="py-1.5 px-2 text-right">Total (Inc)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {confirmedSale.items.map((it, idx) => (
+                    <tr key={idx} className="py-1.5">
+                      <td className="py-2 px-1">
+                        <span className="font-mono font-bold text-slate-900 mr-1.5">
+                          {it.partNumber}
+                        </span>
+                        <span className="text-slate-700">{it.description}</span>
+                      </td>
+                      <td className="py-2 px-2 text-center font-mono font-semibold">
+                        {it.quantity}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono text-slate-600">
+                        {formatCurrency(it.unitPriceInc, currencySymbol)}
+                      </td>
+                      <td className="py-2 px-2 text-right font-mono font-bold text-slate-900">
+                        {formatCurrency(it.lineTotalInc, currencySymbol)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Totals Summary */}
+              <div className="border-t border-slate-200 pt-3 flex justify-between items-start">
+                <div className="max-w-xs text-slate-500 text-[11px] leading-relaxed">
+                  Thank you for shopping with Panzer Autoparts Limited. Certified OEM Range Rover spares.
+                  Dispatch tracking: <strong>2-4 hours Nairobi Metro / Karen / Westlands delivery</strong>.
+                </div>
+
+                <div className="w-56 space-y-1 text-right">
+                  <div className="flex justify-between text-slate-600 text-[11px]">
+                    <span>Subtotal (Net):</span>
+                    <span className="font-mono">{formatCurrency(confirmedSale.subtotalEx, currencySymbol)}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600 text-[11px]">
+                    <span>KRA 16% VAT:</span>
+                    <span className="font-mono">{formatCurrency(confirmedSale.taxAmount, currencySymbol)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-1.5">
+                    <span>Total Paid:</span>
+                    <span className="font-mono text-emerald-700">{formatCurrency(confirmedSale.totalInc, currencySymbol)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => {
                   onViewInvoiceReceipt(confirmedSale);
                   handleCloseAndReset();
                 }}
-                className="flex-1 py-2.5 px-4 text-xs font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg cursor-pointer"
               >
-                View / Print Tax Invoice
+                View Fullscreen Tax Invoice
               </button>
-              <button
-                type="button"
-                onClick={handleCloseAndReset}
-                className="flex-1 py-2.5 px-4 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shadow-sm"
-              >
-                Continue Shopping
-              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handlePrintReceipt}
+                  className="px-4 py-2 text-xs font-semibold text-slate-900 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Receipt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseAndReset}
+                  className="px-5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shadow-sm"
+                >
+                  Done & Continue Shopping
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -350,17 +598,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
 
             {/* Form */}
-            <form onSubmit={handleStartStkPrompt} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+            <form onSubmit={handleStartPaymentFlow} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {/* Order Summary Snapshot */}
               <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs">
                 <div>
-                  <span className="font-semibold text-slate-800">{items.length} item(s) selected</span>
-                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                    Landed Cost: <strong className="text-emerald-700">{formatCurrency(totalLandedCogs, currencySymbol)}</strong>
+                  <span className="font-semibold text-slate-800">{items.length} Range Rover spare item(s) selected</span>
+                  <div className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                    ✓ Genuine OEM Certified · KRA 16% VAT Included
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Total Payable</span>
+                  <span className="text-[10px] text-slate-400 block uppercase tracking-wider font-semibold">Total Payable</span>
                   <span className="font-mono font-bold text-slate-900 text-base">
                     {formatCurrency(totalInc, currencySymbol)}
                   </span>
@@ -374,7 +622,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <button
                     type="button"
                     onClick={() => setErrorMessage(null)}
-                    className="text-rose-400 hover:text-rose-700 ml-2"
+                    className="text-rose-400 hover:text-rose-700 ml-2 cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -448,131 +696,119 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     value={vehicleRef}
                     onChange={(e) => setVehicleRef(e.target.value)}
                     placeholder="e.g. Range Rover Vogue L405 4.4 SDV8 / KDA 482B"
-                    className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                    className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white font-medium"
                   />
                 </div>
               </div>
 
-              {/* Payment Method Selector (M-Pesa STK Prompt vs Cash) */}
+              {/* Payment Method Selector */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Select Payment Option (Kenya Standard) *
+                  Select Payment Method
                 </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Option 1: M-Pesa STK Push */}
-                  <div
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
                     onClick={() => setPaymentMethod('Mobile Money')}
-                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       paymentMethod === 'Mobile Money'
-                        ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600'
-                        : 'border-slate-200 hover:bg-slate-50'
+                        ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-500'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-md bg-emerald-600 text-white flex items-center justify-center">
-                        <Smartphone className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-900">M-Pesa STK Prompt</span>
+                    <div className="flex items-center justify-between">
+                      <Smartphone className={`w-4 h-4 ${paymentMethod === 'Mobile Money' ? 'text-emerald-700' : 'text-slate-400'}`} />
+                      {paymentMethod === 'Mobile Money' && (
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      )}
                     </div>
-                    <p className="text-[11px] text-slate-600 leading-tight">
-                      Instant PIN prompt sent to your Safaricom mobile phone screen.
-                    </p>
-                    <span className="inline-block mt-1 text-[10px] font-mono font-semibold text-emerald-800">
-                      Till/Paybill: 849204
-                    </span>
-                  </div>
+                    <div className="mt-2">
+                      <div className="text-xs font-bold text-slate-900">Lipa na M-Pesa</div>
+                      <div className="text-[10px] text-slate-500">STK Push on phone</div>
+                    </div>
+                  </button>
 
-                  {/* Option 2: Cash On Delivery */}
-                  <div
+                  <button
+                    type="button"
                     onClick={() => setPaymentMethod('Cash')}
-                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
+                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
                       paymentMethod === 'Cash'
                         ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
-                        : 'border-slate-200 hover:bg-slate-50'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="w-6 h-6 rounded-md bg-slate-900 text-white flex items-center justify-center">
-                        <Banknote className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-900">Cash on Delivery</span>
+                    <div className="flex items-center justify-between">
+                      <Banknote className={`w-4 h-4 ${paymentMethod === 'Cash' ? 'text-slate-900' : 'text-slate-400'}`} />
+                      {paymentMethod === 'Cash' && (
+                        <Check className="w-3.5 h-3.5 text-slate-900" />
+                      )}
                     </div>
-                    <p className="text-[11px] text-slate-600 leading-tight">
-                      Pay in cash upon physical delivery or collection at our Nairobi counter.
-                    </p>
-                    <span className="inline-block mt-1 text-[10px] font-mono font-semibold text-slate-600">
-                      Receipt on arrival
-                    </span>
-                  </div>
+                    <div className="mt-2">
+                      <div className="text-xs font-bold text-slate-900">Cash on Delivery</div>
+                      <div className="text-[10px] text-slate-500">Workshop / Courier</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('Bank Transfer')}
+                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      paymentMethod === 'Bank Transfer'
+                        ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Building2 className={`w-4 h-4 ${paymentMethod === 'Bank Transfer' ? 'text-slate-900' : 'text-slate-400'}`} />
+                      {paymentMethod === 'Bank Transfer' && (
+                        <Check className="w-3.5 h-3.5 text-slate-900" />
+                      )}
+                    </div>
+                    <div className="mt-2">
+                      <div className="text-xs font-bold text-slate-900">Bank Wire / RTGS</div>
+                      <div className="text-[10px] text-slate-500">NCBA / KCB Bank</div>
+                    </div>
+                  </button>
                 </div>
               </div>
 
-              {/* Cash Calculation helper if Cash is selected */}
-              {paymentMethod === 'Cash' && (
-                <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-2 text-xs animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Cash Amount Tendered (Optional)</span>
-                    <span className="text-[11px] text-slate-400">For driver change calculation</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      value={cashTendered}
-                      onChange={(e) => setCashTendered(e.target.value)}
-                      placeholder={`e.g. ${Math.ceil(totalInc / 1000) * 1000}`}
-                      className="w-full text-xs p-2 bg-white border border-slate-200 rounded-lg font-mono"
-                    />
-                    {parsedCashTendered > totalInc && (
-                      <div className="shrink-0 text-right">
-                        <span className="text-[10px] text-slate-500 block">Change Due:</span>
-                        <span className="text-xs font-mono font-bold text-emerald-700">
-                          {formatCurrency(cashChangeDue, currencySymbol)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Additional notes */}
+              {/* Special Instructions */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Dispatch Notes (Optional)
+                  Delivery Notes / Gate Code (Optional)
                 </label>
                 <input
                   type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="e.g. Call my mechanic Joseph on 0711..., delivery before 3 PM"
-                  className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
+                  placeholder="e.g. Call before arrival, leave at garage reception"
+                  className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
                 />
               </div>
 
-              {/* Submit CTA */}
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className={`w-full py-3 px-4 text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm ${
-                    paymentMethod === 'Mobile Money'
-                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                      : 'bg-slate-900 hover:bg-slate-800 text-white'
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <span>Registering Order...</span>
-                  ) : paymentMethod === 'Mobile Money' ? (
-                    <>
-                      <Smartphone className="w-4 h-4" />
-                      <span>Trigger M-Pesa STK Prompt ({formatCurrency(totalInc, currencySymbol)})</span>
-                    </>
-                  ) : (
-                    <>
-                      <Banknote className="w-4 h-4" />
-                      <span>Confirm Cash on Delivery ({formatCurrency(totalInc, currencySymbol)})</span>
-                    </>
-                  )}
-                </button>
+              {/* Submit Trigger */}
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                <div className="text-xs text-slate-500">
+                  Total Payable: <strong className="font-mono text-slate-900 text-sm">{formatCurrency(totalInc, currencySymbol)}</strong>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
+                  >
+                    <span>{paymentMethod === 'Mobile Money' ? 'Pay with M-Pesa (STK Push)' : 'Proceed to Payment Confirmation'}</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </form>
           </div>

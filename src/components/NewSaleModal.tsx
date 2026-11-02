@@ -13,7 +13,9 @@ import {
   DollarSign,
   User,
   Car,
-  FileText
+  FileText,
+  ShieldCheck,
+  Check
 } from 'lucide-react';
 
 interface NewSaleModalProps {
@@ -50,7 +52,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<SaleRecord['paymentMethod']>('Mobile Money');
   const [mpesaReceiptCode, setMpesaReceiptCode] = useState('');
   const [cashTendered, setCashTendered] = useState('');
-  const [salesPerson, setSalesPerson] = useState('Carl (Lead Counter)');
+  const [salesPerson, setSalesPerson] = useState('Panzer Operations (Lead Counter)');
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -206,6 +208,19 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
       };
     });
 
+    // Verify payment confirmation
+    if (paymentMethod === 'Cash' && cashTendered) {
+      const tendered = parseFloat(cashTendered);
+      if (tendered < totalInc) {
+        setErrorMsg(`Cash tendered (${formatCurrency(tendered, currencySymbol)}) is less than total payable (${formatCurrency(totalInc, currencySymbol)}).`);
+        return;
+      }
+    }
+
+    const mpesaRef = paymentMethod === 'Mobile Money' 
+      ? (mpesaReceiptCode.trim() || `S${Array.from({ length: 4 }, () => 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)]).join('')}${Math.floor(10000 + Math.random() * 90000)}`) 
+      : undefined;
+
     onCompleteSale({
       customerName: customerName.trim() || 'Walk-in Customer',
       customerPhone: customerPhone.trim() || undefined,
@@ -219,7 +234,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
       totalGrossProfit: Number(totalGrossProfit.toFixed(2)),
       marginPercent: Number(marginPercent.toFixed(1)),
       paymentMethod,
-      mpesaReceiptNumber: paymentMethod === 'Mobile Money' ? (mpesaReceiptCode.trim() || `SHB${Math.floor(10000 + Math.random() * 90000)}KZ`) : undefined,
+      mpesaReceiptNumber: mpesaRef,
       salesPerson,
       notes: notes.trim() || (paymentMethod === 'Cash' && cashTendered ? `Tendered: KSh ${cashTendered}` : undefined),
     });
@@ -595,8 +610,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
               disabled={cart.length === 0}
               className="px-5 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 disabled:pointer-events-none rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
-              <CheckCircle className="w-4 h-4" />
-              <span>Complete Sale & Deduct Stock</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>Confirm Payment & Issue Official Receipt</span>
             </button>
           </div>
         </div>

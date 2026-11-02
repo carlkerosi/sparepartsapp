@@ -118,6 +118,7 @@ export interface AdminAccount {
   displayName: string;
   role: AdminRole;
   status: 'ACTIVE' | 'INACTIVE';
+  password?: string; // Authorized secure login password
   createdAt: string;
   lastLogin?: string;
   avatarUrl?: string;

@@ -132,6 +132,7 @@ service cloud.firestore {
         && data.role in ['SUPER_ADMIN', 'INVENTORY_MANAGER', 'SALES_CLERK']
         && data.status in ['ACTIVE', 'INACTIVE']
         && (!('id' in data) || (data.id is string && data.id.size() <= 128))
+        && (!('password' in data) || (data.password is string && data.password.size() <= 128))
         && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60))
         && (!('lastLogin' in data) || (data.lastLogin is string && data.lastLogin.size() <= 60));
     }

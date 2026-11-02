@@ -17,7 +17,10 @@ import {
   Trash2,
   ShieldCheck,
   ShieldAlert,
-  Sparkles
+  Sparkles,
+  Key,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { checkFirebaseConnection, FirebaseConnectionStatus } from '../lib/firebase';
 
@@ -60,7 +63,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showAddAdmin, setShowAddAdmin] = useState(false);
   const [adminName, setAdminName] = useState('');
   const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('Panzer@Admin2026');
   const [adminRole, setAdminRole] = useState<AdminRole>('SUPER_ADMIN');
+  const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
   const [adminSuccessMsg, setAdminSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -99,6 +104,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       displayName: adminName.trim(),
       email: adminEmail.trim().toLowerCase(),
       role: adminRole,
+      password: adminPassword.trim() || 'Panzer@Admin2026',
       status: 'ACTIVE',
       createdAt: new Date().toISOString(),
       lastLogin: new Date().toISOString(),
@@ -108,6 +114,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setAdminSuccessMsg(`Admin account created for ${newAccount.displayName} (${newAccount.email})`);
     setAdminName('');
     setAdminEmail('');
+    setAdminPassword('Panzer@Admin2026');
     setShowAddAdmin(false);
     setTimeout(() => setAdminSuccessMsg(null), 3500);
   };
@@ -166,7 +173,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Admin Accounts List */}
             <div className="space-y-1.5">
               {adminAccounts.map((acc) => {
-                const isCarl = acc.email.toLowerCase() === 'kerosicarl@gmail.com';
+                const isPrimary = 
+                  acc.email.toLowerCase() === 'orders@panzerautoparts.co.ke' || 
+                  acc.id === 'admin-operations';
                 const isCurrent = currentAdmin?.email.toLowerCase() === acc.email.toLowerCase();
 
                 return (
@@ -186,13 +195,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               Current
                             </span>
                           )}
-                          {isCarl && (
+                          {isPrimary && (
                             <span className="px-1.5 py-0.2 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold">
-                              Primary Owner
+                              Primary Admin
                             </span>
                           )}
                         </div>
                         <span className="text-[11px] text-slate-500 font-mono block truncate">{acc.email}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-slate-500 font-mono">
+                          <Key className="w-3 h-3 text-slate-400" />
+                          <span>Password:</span>
+                          <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                            {showPasswordMap[acc.id] ? (acc.password || 'Panzer@Admin2026') : '••••••••••••'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowPasswordMap((prev) => ({ ...prev, [acc.id]: !prev[acc.id] }))}
+                            className="text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                          >
+                            {showPasswordMap[acc.id] ? 'Hide' : 'Show'}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -200,7 +223,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">
                         {acc.role}
                       </span>
-                      {!isCarl && onDeleteAdminAccount && (
+                      {!isPrimary && onDeleteAdminAccount && (
                         <button
                           type="button"
                           onClick={() => onDeleteAdminAccount(acc.id)}
@@ -245,17 +268,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Role / Clearance</label>
-                  <select
-                    value={adminRole}
-                    onChange={(e) => setAdminRole(e.target.value as AdminRole)}
-                    className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded text-xs"
-                  >
-                    <option value="SUPER_ADMIN">Super Administrator (Full Ledger, Stock & Settings)</option>
-                    <option value="INVENTORY_MANAGER">Inventory Manager (Stock, Reordering & Pricing)</option>
-                    <option value="SALES_CLERK">Sales Counter Clerk (Point of Sale & Invoices)</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Admin Password</label>
+                    <input
+                      type="text"
+                      required
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="e.g. Panzer@Admin2026"
+                      className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-0.5">Role / Clearance</label>
+                    <select
+                      value={adminRole}
+                      onChange={(e) => setAdminRole(e.target.value as AdminRole)}
+                      className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded text-xs"
+                    >
+                      <option value="SUPER_ADMIN">Super Administrator (Full Ledger, Stock & Settings)</option>
+                      <option value="INVENTORY_MANAGER">Inventory Manager (Stock, Reordering & Pricing)</option>
+                      <option value="SALES_CLERK">Sales Counter Clerk (Point of Sale & Invoices)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-1">

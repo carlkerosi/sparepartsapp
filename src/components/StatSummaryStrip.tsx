@@ -1,6 +1,6 @@
 import React from 'react';
 import { InventoryMetrics, formatCurrency, formatNumber } from '../utils/calculations';
-import { AlertCircle, AlertTriangle, Layers, DollarSign, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Layers, TrendingUp } from 'lucide-react';
 
 interface StatSummaryStripProps {
   metrics: InventoryMetrics;
@@ -18,7 +18,7 @@ export const StatSummaryStrip: React.FC<StatSummaryStripProps> = ({
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
       {/* 1. Total Stock Units */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between shadow-2xs">
         <div className="text-xs font-medium text-slate-500 flex items-center justify-between">
           <span>Total Units in Stock</span>
           <Layers className="w-3.5 h-3.5 text-slate-400" />
@@ -34,7 +34,7 @@ export const StatSummaryStrip: React.FC<StatSummaryStripProps> = ({
       </div>
 
       {/* 2. Low Stock & Out of Stock Alerts */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between shadow-2xs">
         <div className="text-xs font-medium text-slate-500 flex items-center justify-between">
           <span>Real-Time Alerts</span>
           <AlertTriangle className={`w-3.5 h-3.5 ${metrics.lowStockCount > 0 ? 'text-amber-500' : 'text-slate-400'}`} />
@@ -66,7 +66,7 @@ export const StatSummaryStrip: React.FC<StatSummaryStripProps> = ({
       </div>
 
       {/* 3. Total FOB Valuation USD */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between shadow-2xs">
         <div className="text-xs font-medium text-slate-500 flex items-center justify-between">
           <span>FOB Inventory Value</span>
           <span className="text-[10px] font-mono text-slate-400">USD</span>
@@ -82,7 +82,7 @@ export const StatSummaryStrip: React.FC<StatSummaryStripProps> = ({
       </div>
 
       {/* 4. Total Landed Cost Valuation */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between shadow-2xs">
         <div className="text-xs font-medium text-slate-500 flex items-center justify-between">
           <span>Total Landed Cost</span>
           <span className="text-[10px] font-mono font-semibold text-slate-400">{currencySymbol}</span>
@@ -98,7 +98,7 @@ export const StatSummaryStrip: React.FC<StatSummaryStripProps> = ({
       </div>
 
       {/* 5. Potential Retail Value (Ex-Tax) */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between shadow-2xs">
         <div className="text-xs font-medium text-slate-500 flex items-center justify-between">
           <span>Selling Value (Ex)</span>
           <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
@@ -114,7 +114,7 @@ export const StatSummaryStrip: React.FC<StatSummaryStripProps> = ({
       </div>
 
       {/* 6. Unrealized Gross Profit Margin */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+      <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between shadow-2xs">
         <div className="text-xs font-medium text-slate-500 flex items-center justify-between">
           <span>Unrealized Margin</span>
           <span className="text-[10px] font-mono text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">

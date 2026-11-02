@@ -134,7 +134,7 @@ export const StockAdjustModal: React.FC<StockAdjustModalProps> = ({
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Audit Sheet #12, Bin recount by Carl"
+              placeholder="e.g. Audit Sheet #12, Bin recount by Operations"
               className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
             />
           </div>

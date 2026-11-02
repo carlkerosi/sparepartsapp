@@ -395,6 +395,11 @@
           "type": "string",
           "description": "ISO timestamp of last administrative login",
           "maxLength": 60
+        },
+        "password": {
+          "type": "string",
+          "description": "Authorized staff login password",
+          "maxLength": 128
         }
       },
       "required": ["email", "displayName", "role", "status"]

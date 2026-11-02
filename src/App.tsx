@@ -75,7 +75,7 @@ export default function App() {
   const [adminAccounts, setAdminAccounts] = useState<AdminAccount[]>(() => loadAdminAccounts());
   const [currentAdmin, setCurrentAdmin] = useState<AdminAccount | null>(() => {
     const list = loadAdminAccounts();
-    return list.find((a) => a.email.toLowerCase() === 'kerosicarl@gmail.com') || list[0] || null;
+    return list.find((a) => a.email.toLowerCase() === 'orders@panzerautoparts.co.ke') || list[0] || null;
   });
 
   // Application View Mode: Customer 'storefront' vs Admin 'admin'
@@ -190,7 +190,7 @@ export default function App() {
         setAdminAccounts(newAdmins);
         saveAdminAccounts(newAdmins);
         setCurrentAdmin((prev) => {
-          if (!prev) return newAdmins.find((a) => a.email.toLowerCase() === 'kerosicarl@gmail.com') || newAdmins[0] || null;
+          if (!prev) return newAdmins.find((a) => a.email.toLowerCase() === 'orders@panzerautoparts.co.ke') || newAdmins[0] || null;
           return newAdmins.find((a) => a.id === prev.id) || prev;
         });
       },
@@ -807,6 +807,7 @@ export default function App() {
   );
 
   // Fast Sell trigger from Table row
+  // Fast Sell trigger from Table row
   const handleFastSellFromRow = useCallback((part: SparePart) => {
     setSaleInitialPart(part);
     setIsNewSaleModalOpen(true);
@@ -871,8 +872,11 @@ export default function App() {
     async (accountId: string) => {
       const target = adminAccounts.find((a) => a.id === accountId);
       if (!target) return;
-      if (target.email.toLowerCase() === 'kerosicarl@gmail.com') {
-        showToast('Primary owner Carl Kerosi cannot be removed.', 'error');
+      if (
+        target.email.toLowerCase() === 'orders@panzerautoparts.co.ke' ||
+        target.id === 'admin-operations'
+      ) {
+        showToast('Primary administrator Panzer Operations Admin cannot be removed.', 'error');
         return;
       }
       if (confirm(`Remove administrator "${target.displayName} (${target.email})"?`)) {

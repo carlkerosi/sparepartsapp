@@ -322,17 +322,23 @@ export function subscribeAdminAccounts(
 
       const items: AdminAccount[] = [];
       snapshot.forEach((d) => {
-        items.push({ ...(d.data() as AdminAccount), id: d.id });
+        const data = d.data() as AdminAccount;
+        if (data.email?.toLowerCase() === 'kerosicarl@gmail.com' || d.id === 'admin-kerosi') {
+          // Delete Carl Kerosi record from Firestore
+          deleteDoc(doc(db, path, d.id)).catch(() => {});
+          return;
+        }
+        items.push({ ...data, id: d.id });
       });
 
-      // Ensure Carl Kerosi is always present
-      const hasCarl = items.some((a) => a.email.toLowerCase() === 'kerosicarl@gmail.com');
-      if (!hasCarl && INITIAL_ADMINS.length > 0) {
+      // Ensure Panzer Operations Admin exists and has a password
+      const hasOpsAdmin = items.some((a) => a.id === 'admin-operations' || a.email.toLowerCase() === 'orders@panzerautoparts.co.ke');
+      if (!hasOpsAdmin && INITIAL_ADMINS.length > 0) {
         try {
           await setDoc(doc(db, path, INITIAL_ADMINS[0].id), INITIAL_ADMINS[0]);
           items.unshift(INITIAL_ADMINS[0]);
         } catch (e) {
-          console.warn('Could not auto-seed primary admin:', e);
+          console.warn('Could not auto-seed operations admin:', e);
         }
       }
 
@@ -371,16 +377,15 @@ export async function signInWithGoogleAdmin(): Promise<{ user: any; adminAccount
   
   const result = await signInWithPopup(auth, provider);
   const user = result.user;
-  const userEmail = (user.email || '').toLowerCase();
 
   // Create or update Admin record in Firestore
-  const isCarl = userEmail === 'kerosicarl@gmail.com';
   const adminAccount: AdminAccount = {
     id: `admin-${user.uid.slice(0, 16)}`,
     email: user.email || 'admin@panzerautoparts.co.ke',
-    displayName: user.displayName || (isCarl ? 'Carl Kerosi' : 'Authorized Admin'),
-    role: isCarl ? 'SUPER_ADMIN' : 'INVENTORY_MANAGER',
+    displayName: user.displayName || 'Panzer Admin',
+    role: 'SUPER_ADMIN',
     status: 'ACTIVE',
+    password: 'Panzer@Admin2026',
     createdAt: new Date().toISOString(),
     lastLogin: new Date().toISOString(),
     avatarUrl: user.photoURL || undefined,
