@@ -91,9 +91,9 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
                 {settings.businessRegNumber && (
                   <div>BRS Company Reg: <span className="font-mono font-medium text-slate-700">{settings.businessRegNumber}</span></div>
                 )}
-                {(settings.mpesaPaybillNumber || settings.mpesaTillNumber) && (
+                {(settings.mpesaPaybillNumber || settings.mpesaTillNumber || settings.mpesaAccountNumber) && (
                   <div className="text-[11px] text-emerald-800 font-mono">
-                    Lipa na M-Pesa Paybill: <strong>{settings.mpesaPaybillNumber || '849204'}</strong> · Till: <strong>{settings.mpesaTillNumber || '948201'}</strong>
+                    Lipa na M-Pesa Paybill: <strong>{settings.mpesaPaybillNumber || '522522'}</strong> · Acc No: <strong>{settings.mpesaAccountNumber || '1358024235'}</strong> · Account: <strong>{settings.mpesaAccountName || 'PANZER AUTOPARTS LTD'}</strong>
                   </div>
                 )}
               </div>

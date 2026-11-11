@@ -104,8 +104,15 @@ export interface InventorySettings {
   businessPhone: string;
   businessTaxId: string;
   businessRegNumber?: string; // Kenyan Company Reg No (e.g. PVT-EYU7821 / CPR/2021/849204)
-  mpesaPaybillNumber?: string; // Lipa na M-Pesa Business No. (Paybill)
-  mpesaTillNumber?: string; // Lipa na M-Pesa Buy Goods Till No.
+  mpesaPaybillNumber?: string; // Lipa na M-Pesa Business No. (Paybill, 522522)
+  mpesaTillNumber?: string; // Lipa na M-Pesa Buy Goods Till No. (522522)
+  mpesaAccountNumber?: string; // Account Number under Paybill (e.g. 1358024235)
+  mpesaAccountName?: string; // Account / Till Name (e.g. PANZER AUTOPARTS LTD)
+  mpesaConsumerKey?: string; // Daraja Consumer Key
+  mpesaConsumerSecret?: string; // Daraja Consumer Secret
+  mpesaPasskey?: string; // Daraja Online Passkey
+  mpesaShortcode?: string; // Daraja Business ShortCode (522522)
+  mpesaEnvironment?: 'sandbox' | 'production';
   businessEmail?: string;
   adminAccessCode?: string; // Default '1234'
 }

@@ -276,7 +276,8 @@ export function subscribeSettings(
         onUpdate(DEFAULT_SETTINGS);
         return;
       }
-      onUpdate(snapshot.data() as InventorySettings);
+      const data = snapshot.data() as InventorySettings;
+      onUpdate({ ...DEFAULT_SETTINGS, ...data });
     },
     (err) => {
       console.warn('Firestore onSnapshot settings error:', err);
@@ -289,7 +290,12 @@ export function subscribeSettings(
 export async function saveSettingsToFirestore(settings: InventorySettings): Promise<void> {
   const path = `${COLLECTIONS.SETTINGS}/current`;
   try {
-    await setDoc(doc(db, COLLECTIONS.SETTINGS, 'current'), settings);
+    // Sanitize settings: sensitive API credentials must NEVER be stored in public /settings/current
+    const sanitized = { ...settings };
+    delete sanitized.mpesaConsumerKey;
+    delete sanitized.mpesaConsumerSecret;
+    delete sanitized.mpesaPasskey;
+    await setDoc(doc(db, COLLECTIONS.SETTINGS, 'current'), sanitized);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -323,11 +329,6 @@ export function subscribeAdminAccounts(
       const items: AdminAccount[] = [];
       snapshot.forEach((d) => {
         const data = d.data() as AdminAccount;
-        if (data.email?.toLowerCase() === 'kerosicarl@gmail.com' || d.id === 'admin-kerosi') {
-          // Delete Carl Kerosi record from Firestore
-          deleteDoc(doc(db, path, d.id)).catch(() => {});
-          return;
-        }
         items.push({ ...data, id: d.id });
       });
 

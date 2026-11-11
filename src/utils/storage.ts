@@ -45,7 +45,14 @@ export function loadParts(): SparePart[] {
       saveParts(INITIAL_PARTS);
       return INITIAL_PARTS;
     }
-    return parsed;
+    const synced = parsed.map((p: SparePart) => {
+      const initial = INITIAL_PARTS.find((ip) => ip.id === p.id);
+      if (initial && initial.imageUrl && p.imageUrl !== initial.imageUrl) {
+        return { ...p, imageUrl: initial.imageUrl };
+      }
+      return p;
+    });
+    return synced;
   } catch (err) {
     console.error('Failed to load parts from localStorage', err);
     return INITIAL_PARTS;
@@ -111,7 +118,24 @@ export function loadSettings(): InventorySettings {
       saveSettings(DEFAULT_SETTINGS);
       return DEFAULT_SETTINGS;
     }
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    if (parsed.mpesaTillNumber === '948201' || !parsed.mpesaTillNumber) {
+      parsed.mpesaTillNumber = '522522';
+    }
+    if (parsed.mpesaPaybillNumber !== '522522') {
+      parsed.mpesaPaybillNumber = '522522';
+    }
+    if (parsed.mpesaShortcode === '174379' || !parsed.mpesaShortcode) {
+      parsed.mpesaShortcode = '522522';
+    }
+    parsed.mpesaAccountNumber = '1358024235';
+    parsed.mpesaAccountName = 'PANZER AUTOPARTS LTD';
+    // Cleanse any legacy sensitive secrets from localStorage
+    delete parsed.mpesaConsumerKey;
+    delete parsed.mpesaConsumerSecret;
+    delete parsed.mpesaPasskey;
+
+    return { ...DEFAULT_SETTINGS, ...parsed };
   } catch (err) {
     console.error('Failed to load settings from localStorage', err);
     return DEFAULT_SETTINGS;
@@ -120,7 +144,12 @@ export function loadSettings(): InventorySettings {
 
 export function saveSettings(settings: InventorySettings): void {
   try {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    // Strictly sanitize settings before saving to localStorage: zero API secrets stored in browser
+    const sanitized = { ...settings };
+    delete sanitized.mpesaConsumerKey;
+    delete sanitized.mpesaConsumerSecret;
+    delete sanitized.mpesaPasskey;
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(sanitized));
   } catch (err) {
     console.error('Failed to save settings to localStorage', err);
   }
@@ -138,13 +167,8 @@ export function loadAdminAccounts(): AdminAccount[] {
       saveAdminAccounts(INITIAL_ADMINS);
       return INITIAL_ADMINS;
     }
-    // Remove Carl Kerosi from any cached admin accounts
     const filtered = parsed.filter(
-      (a: AdminAccount) =>
-        a &&
-        typeof a.email === 'string' &&
-        a.email.toLowerCase() !== 'kerosicarl@gmail.com' &&
-        !a.displayName.toLowerCase().includes('kerosi')
+      (a: AdminAccount) => a && typeof a.email === 'string' && a.email.trim().length > 0
     );
 
     // Ensure Panzer Operations Admin exists and has a password

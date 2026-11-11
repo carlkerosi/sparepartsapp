@@ -10,8 +10,13 @@ export const DEFAULT_SETTINGS: InventorySettings = {
   businessPhone: '+254 722 849 204',
   businessTaxId: 'P051892048X', // KRA e-TIMS PIN
   businessRegNumber: 'PVT-EYU7821 / CPR/2021/849204', // Kenyan Company Reg No
-  mpesaPaybillNumber: '849204', // M-Pesa Business Number (Paybill)
-  mpesaTillNumber: '948201', // Lipa na M-Pesa Buy Goods Till
+  mpesaPaybillNumber: '522522', // M-Pesa Business / Paybill Number
+  mpesaTillNumber: '522522', // Lipa na M-Pesa Buy Goods Till
+  mpesaShortcode: '522522', // Direct prompts to Paybill 522522
+  mpesaAccountNumber: '1358024235', // Account Number under Paybill 522522
+  mpesaAccountName: 'PANZER AUTOPARTS LTD', // Account / Till Name
+  mpesaPasskey: 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919', // Standard Sandbox passkey
+  mpesaEnvironment: 'sandbox',
   businessEmail: 'orders@panzerautoparts.co.ke',
   adminAccessCode: '1234',
 };
@@ -185,7 +190,7 @@ export const INITIAL_PARTS: SparePart[] = [
     partNumber: 'LR-BRK-033302',
     description: 'Range Rover Front Brake Disc Rotors (Pair, 380mm Brembo Ventilated)',
     category: 'Braking',
-    imageUrl: '/src/assets/images/part_ceramic_brake_pads_1792926667949.jpg',
+    imageUrl: '/src/assets/images/rr_brake_disc_1793612957295.jpg',
     unitCostFobUsd: 135.00,
     unitCostLanded: 26500.00, // Landed in KSh (FOB + Freight + Duty + Port handling)
     retailPriceEx: 36000.00,  // Retail Ex in KSh
@@ -261,7 +266,7 @@ export const INITIAL_PARTS: SparePart[] = [
     partNumber: 'LR-BRK-095295',
     description: 'Range Rover Rear Brake Disc Rotors (Pair, 365mm Ventilated Cast-Iron)',
     category: 'Braking',
-    imageUrl: '/src/assets/images/part_ceramic_brake_pads_1792926667949.jpg',
+    imageUrl: '/src/assets/images/rr_brake_disc_1793612957295.jpg',
     unitCostFobUsd: 98.00,
     unitCostLanded: 19500.00, // Landed in KSh
     retailPriceEx: 28000.00,
@@ -318,7 +323,7 @@ export const INITIAL_PARTS: SparePart[] = [
     partNumber: 'LR-WTR-097165',
     description: 'Range Rover 3.0 V6 Supercharged & 5.0 V8 Aluminum Engine Water Pump',
     category: 'Cooling',
-    imageUrl: '/src/assets/images/range_rover_air_suspension_1792927570074.jpg',
+    imageUrl: '/src/assets/images/rr_water_pump_1793612958302.jpg',
     unitCostFobUsd: 88.00,
     unitCostLanded: 17500.00, // Landed in KSh
     retailPriceEx: 25000.00,
@@ -337,7 +342,7 @@ export const INITIAL_PARTS: SparePart[] = [
     partNumber: 'LR-EXP-020322',
     description: 'Range Rover Coolant Expansion Tank Reservoir with Level Sensor & Pressure Cap',
     category: 'Cooling',
-    imageUrl: '/src/assets/images/range_rover_air_suspension_1792927570074.jpg',
+    imageUrl: '/src/assets/images/rr_expansion_tank_1793612959066.jpg',
     unitCostFobUsd: 42.00,
     unitCostLanded: 8500.00, // Landed in KSh
     retailPriceEx: 12800.00,
@@ -356,7 +361,7 @@ export const INITIAL_PARTS: SparePart[] = [
     partNumber: 'LR-TRN-023294',
     description: 'ZF 8HP70 8-Speed Automatic Transmission Pan, Micro-Filtration Gasket & Filter Kit',
     category: 'Transmission',
-    imageUrl: '/src/assets/images/part_spin_oil_filter_1792926668402.jpg',
+    imageUrl: '/src/assets/images/rr_trans_pan_1793612959448.jpg',
     unitCostFobUsd: 95.00,
     unitCostLanded: 18800.00, // Landed in KSh
     retailPriceEx: 27500.00,
@@ -375,7 +380,7 @@ export const INITIAL_PARTS: SparePart[] = [
     partNumber: 'LR-COL-040738',
     description: 'Range Rover 3.0 TDV6 / 4.4 SDV8 Engine Oil Cooler Heat Exchanger & Viton Seals',
     category: 'Cooling',
-    imageUrl: '/src/assets/images/range_rover_air_suspension_1792927570074.jpg',
+    imageUrl: '/src/assets/images/rr_oil_cooler_1793612959848.jpg',
     unitCostFobUsd: 82.00,
     unitCostLanded: 16200.00, // Landed in KSh
     retailPriceEx: 23500.00,

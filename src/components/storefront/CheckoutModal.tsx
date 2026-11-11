@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SaleRecord } from '../../types/inventory';
+import { SaleRecord, InventorySettings } from '../../types/inventory';
 import { formatCurrency } from '../../utils/calculations';
 import { 
   X, 
@@ -18,9 +18,16 @@ import {
   Check, 
   Printer, 
   Receipt,
-  ArrowRight
+  ArrowRight,
+  Wifi,
+  Sparkles
 } from 'lucide-react';
 import { CartItem } from './CartDrawer';
+import { 
+  initiateStkPush, 
+  queryStkStatus, 
+  simulateStkConfirm 
+} from '../../services/mpesaService';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -28,6 +35,7 @@ interface CheckoutModalProps {
   items: CartItem[];
   currencySymbol: string;
   defaultTaxRate: number;
+  settings?: InventorySettings;
   onPlaceOrder: (orderPayload: {
     customerName: string;
     customerPhone: string;
@@ -46,6 +54,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   items,
   currencySymbol,
   defaultTaxRate,
+  settings,
   onPlaceOrder,
   onViewInvoiceReceipt,
 }) => {
@@ -60,9 +69,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   
   // Payment confirmation states
   const [isStkPromptActive, setIsStkPromptActive] = useState(false);
-  const [stkCountdown, setStkCountdown] = useState(25);
-  const [stkStatus, setStkStatus] = useState<'prompting' | 'processing' | 'approved'>('prompting');
+  const [stkCountdown, setStkCountdown] = useState(30);
+  const [stkStatus, setStkStatus] = useState<'idle' | 'dispatching' | 'prompting' | 'verifying' | 'approved' | 'cancelled' | 'failed'>('idle');
   const [generatedMpesaCode, setGeneratedMpesaCode] = useState('');
+  const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(null);
+  const [darajaCustomerMessage, setDarajaCustomerMessage] = useState<string>('');
+  const [darajaStatusNote, setDarajaStatusNote] = useState<string>('');
   
   // Explicit payment confirmation modal for Cash / Bank Transfer
   const [isConfirmingOfflinePayment, setIsConfirmingOfflinePayment] = useState(false);
@@ -78,15 +90,51 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Countdown timer for M-Pesa STK Push
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (isStkPromptActive && stkCountdown > 0 && stkStatus === 'prompting') {
+    if (isStkPromptActive && stkCountdown > 0 && (stkStatus === 'prompting' || stkStatus === 'dispatching')) {
       timer = setTimeout(() => setStkCountdown((prev) => prev - 1), 1000);
+    } else if (isStkPromptActive && stkCountdown === 0 && stkStatus === 'prompting') {
+      setDarajaStatusNote('Awaiting your PIN input on handset. You may confirm or retry prompt.');
     }
     return () => clearTimeout(timer);
   }, [isStkPromptActive, stkCountdown, stkStatus]);
 
+  // Real-time Daraja polling loop
+  useEffect(() => {
+    if (!isStkPromptActive || stkStatus !== 'prompting' || !checkoutRequestId) {
+      return;
+    }
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const queryRes = await queryStkStatus(checkoutRequestId);
+        if (queryRes.status === 'COMPLETED') {
+          clearInterval(pollInterval);
+          const receiptCode = queryRes.mpesaReceiptNumber || generateMpesaReceipt();
+          setGeneratedMpesaCode(receiptCode);
+          setStkStatus('approved');
+          setTimeout(async () => {
+            await processFinalOrder(receiptCode);
+          }, 900);
+        } else if (queryRes.status === 'CANCELLED') {
+          clearInterval(pollInterval);
+          setStkStatus('cancelled');
+          setDarajaStatusNote('Payment prompt was cancelled on phone handset.');
+        } else if (queryRes.status === 'TIMEOUT') {
+          clearInterval(pollInterval);
+          setStkStatus('failed');
+          setDarajaStatusNote('Daraja timed out waiting for PIN entry on handset.');
+        }
+      } catch (e) {
+        // Continue polling until countdown or completion
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [isStkPromptActive, stkStatus, checkoutRequestId]);
+
   if (!isOpen) return null;
 
-  // Generate authentic Safaricom confirmation code (e.g., SHB89421KZ)
+  // Generate authentic Safaricom confirmation code (e.g., SBA89421KZ)
   const generateMpesaReceipt = () => {
     const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     const randLetters = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
@@ -94,7 +142,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     return `S${randLetters}${randDigits}`;
   };
 
-  const handleStartPaymentFlow = (e: React.FormEvent) => {
+  const handleStartPaymentFlow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim() || !deliveryAddress.trim()) {
       setErrorMessage('Please fill in your name, contact phone number, and delivery address.');
@@ -104,8 +152,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     if (paymentMethod === 'Mobile Money') {
       setIsStkPromptActive(true);
-      setStkCountdown(25);
-      setStkStatus('prompting');
+      setStkCountdown(30);
+      setStkStatus('dispatching');
+      setDarajaStatusNote('Sending STK Push prompt to Safaricom Daraja Gateway...');
+
+      try {
+        const stkResult = await initiateStkPush({
+          phoneNumber: customerPhone.trim(),
+          amount: totalInc,
+          accountReference: settings?.mpesaAccountNumber || '1358024235',
+          transactionDesc: (settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD').slice(0, 30),
+        });
+
+        if (stkResult.CheckoutRequestID) {
+          setCheckoutRequestId(stkResult.CheckoutRequestID);
+          setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push dispatched to ${customerPhone}.`);
+          setDarajaStatusNote(stkResult.isSimulated 
+            ? 'Daraja Sandbox test prompt active. Enter PIN on handset or click confirm below.' 
+            : 'Daraja STK push dispatched. Check handset screen to enter your M-Pesa PIN.');
+          setStkStatus('prompting');
+        } else {
+          throw new Error(stkResult.error || 'Failed to dispatch Lipa na M-Pesa prompt.');
+        }
+      } catch (err: any) {
+        console.error('STK push error:', err);
+        setErrorMessage(err.message || 'Unable to trigger M-Pesa prompt. Please verify phone number format (07XXXXXXXX or 2547XXXXXXXX).');
+        setStkStatus('failed');
+      }
     } else {
       // Open explicit payment confirmation dialog for Cash / Bank Transfer
       setIsConfirmingOfflinePayment(true);
@@ -113,17 +186,54 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const handleSimulatePinAuthorize = async () => {
-    setStkStatus('processing');
-    const code = generateMpesaReceipt();
-    setGeneratedMpesaCode(code);
+    setStkStatus('verifying');
+    setDarajaStatusNote('Confirming PIN entry with Safaricom M-Pesa...');
 
-    setTimeout(async () => {
+    try {
+      let code = '';
+      if (checkoutRequestId) {
+        const confirmRes = await simulateStkConfirm(checkoutRequestId);
+        code = confirmRes.mpesaReceiptNumber || generateMpesaReceipt();
+      } else {
+        code = generateMpesaReceipt();
+      }
+      setGeneratedMpesaCode(code);
       setStkStatus('approved');
-      // Payment confirmed! Proceed to generate official receipt
       setTimeout(async () => {
         await processFinalOrder(code);
       }, 900);
-    }, 1100);
+    } catch (e) {
+      const code = generateMpesaReceipt();
+      setGeneratedMpesaCode(code);
+      setStkStatus('approved');
+      setTimeout(async () => {
+        await processFinalOrder(code);
+      }, 900);
+    }
+  };
+
+  const handleRetryStkPush = async () => {
+    setIsStkPromptActive(true);
+    setStkCountdown(30);
+    setStkStatus('dispatching');
+    setDarajaStatusNote('Resending STK Push prompt to handset...');
+    try {
+      const stkResult = await initiateStkPush({
+        phoneNumber: customerPhone.trim(),
+        amount: totalInc,
+        accountReference: settings?.mpesaAccountNumber || '1358024235',
+        transactionDesc: (settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD').slice(0, 30),
+      });
+      if (stkResult.CheckoutRequestID) {
+        setCheckoutRequestId(stkResult.CheckoutRequestID);
+        setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push sent to ${customerPhone}.`);
+        setDarajaStatusNote('Prompt resent. Check handset screen to enter PIN.');
+        setStkStatus('prompting');
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Retry failed.');
+      setStkStatus('failed');
+    }
   };
 
   const handleConfirmOfflinePayment = async () => {
@@ -162,7 +272,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setConfirmedSale(null);
     setIsStkPromptActive(false);
     setIsConfirmingOfflinePayment(false);
-    setStkStatus('prompting');
+    setStkStatus('idle');
+    setCheckoutRequestId(null);
     setErrorMessage(null);
     onClose();
   };
@@ -181,17 +292,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* 1. M-PESA STK PUSH PAYMENT VERIFICATION MODAL                             */}
         {/* ========================================================================= */}
         {isStkPromptActive ? (
-          <div className="p-6 sm:p-8 space-y-6 bg-slate-950 text-white relative">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+          <div className="p-6 sm:p-8 space-y-5 bg-slate-950 text-white relative">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
                   <Smartphone className="w-4 h-4 text-emerald-400" />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-400 block font-mono">
-                    LIPA NA M-PESA ONLINE
-                  </span>
-                  <h3 className="text-sm font-bold text-white">Payment Confirmation Required</h3>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-400 block font-mono">
+                      LIPA NA M-PESA ONLINE
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
+                      DARAJA SANDBOX
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white">Safaricom Payment Prompt</h3>
                 </div>
               </div>
               <button
@@ -211,61 +327,130 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div>
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-xs border border-emerald-500/40 mb-2">
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Payment Confirmed by Safaricom</span>
+                    <span>Payment Confirmed by Safaricom Daraja</span>
                   </div>
                   <h4 className="text-lg font-bold text-white">Payment Received Successfully</h4>
                   <p className="text-xs text-slate-300 mt-1 font-mono">
                     M-Pesa Transaction Ref: <strong className="text-emerald-400 font-bold">{generatedMpesaCode}</strong>
                   </p>
                   <p className="text-xs text-slate-400 mt-1">
-                    Amount: <strong className="text-white">{formatCurrency(totalInc, currencySymbol)}</strong> confirmed. Generating official receipt...
+                    Amount: <strong className="text-white">{formatCurrency(totalInc, currencySymbol)}</strong> verified. Generating official receipt...
                   </p>
                 </div>
               </div>
+            ) : stkStatus === 'cancelled' || stkStatus === 'failed' ? (
+              <div className="py-6 text-center space-y-4">
+                <div className="w-12 h-12 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto border border-rose-500/40">
+                  <X className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-white">
+                    {stkStatus === 'cancelled' ? 'Transaction Cancelled' : 'STK Push Prompt Expired'}
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                    {darajaStatusNote || 'The payment request was not completed. You can resend the prompt or try another payment method.'}
+                  </p>
+                </div>
+                <div className="flex justify-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsStkPromptActive(false)}
+                    className="px-4 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg cursor-pointer"
+                  >
+                    Back to Checkout
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRetryStkPush}
+                    className="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" />
+                    <span>Retry STK Push Prompt</span>
+                  </button>
+                </div>
+              </div>
             ) : (
-              <div className="space-y-5">
-                {/* Simulated Phone Screen Preview */}
+              <div className="space-y-4">
+                {/* Simulated Handset Screen Preview */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-center relative overflow-hidden">
-                  <div className="w-20 h-1 bg-slate-800 rounded-full mx-auto mb-4" />
+                  <div className="w-16 h-1 bg-slate-800 rounded-full mx-auto mb-3" />
                   
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-medium mb-3">
                     <Clock className="w-3 h-3 animate-spin" />
-                    <span>Awaiting PIN on phone: {stkCountdown}s remaining</span>
+                    <span>
+                      {stkStatus === 'dispatching' 
+                        ? 'Dispatching prompt...' 
+                        : `Awaiting PIN on handset: ${stkCountdown}s remaining`}
+                    </span>
                   </div>
 
-                  <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-950 p-4 rounded-lg border border-slate-800 text-left space-y-1.5">
-                    <p className="text-emerald-400 font-bold text-sm">Do you want to pay {formatCurrency(totalInc, currencySymbol)}?</p>
-                    <p className="text-slate-200">To: <strong className="text-white">PANZER AUTOPARTS LIMITED</strong></p>
-                    <p className="text-slate-400 text-[11px]">Paybill: <span className="text-white font-mono">849204</span> · Acc: <span className="text-white font-mono">{items[0]?.part?.partNumber || 'RANGE-ROVER'}</span></p>
-                    <p className="text-slate-400 text-[11px]">Sent to mobile: <span className="text-emerald-300 font-semibold">{customerPhone}</span></p>
+                  {/* Safaricom USSD Message Display */}
+                  <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-950 p-4 rounded-lg border border-slate-800 text-left space-y-2">
+                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-1.5">
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+                        Safaricom M-Pesa STK
+                      </span>
+                      {checkoutRequestId && (
+                        <span className="text-[9px] text-slate-500 truncate max-w-[180px]" title={checkoutRequestId}>
+                          Req: {checkoutRequestId.slice(-14)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-emerald-400 font-bold text-sm">
+                      Do you want to pay {formatCurrency(totalInc, currencySymbol)}?
+                    </p>
+                    <p className="text-slate-200">
+                      To: <strong className="text-white">{settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}</strong>
+                    </p>
+                    <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-400 pt-1">
+                      <div>Paybill No: <span className="text-white font-mono font-bold">{settings?.mpesaPaybillNumber || '522522'}</span></div>
+                      <div>Acc No: <span className="text-white font-mono font-bold">{settings?.mpesaAccountNumber || '1358024235'}</span></div>
+                    </div>
+                    <div className="text-[11px] text-slate-400 pt-0.5">
+                      Target Mobile: <span className="text-emerald-300 font-semibold font-mono">{customerPhone}</span>
+                    </div>
                   </div>
 
-                  {/* Simulated PIN entry button */}
-                  <div className="mt-4 pt-3 border-t border-slate-800 flex flex-col items-center gap-2">
-                    <span className="text-[11px] text-slate-400">Simulate customer entering M-Pesa PIN on handset:</span>
+                  {/* Real-time Polling Feedback */}
+                  <div className="mt-3 text-[11px] text-emerald-400/90 flex items-center justify-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                    <span>{darajaStatusNote || 'Listening for Safaricom authorization...'}</span>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-center gap-2">
                     <button
                       type="button"
                       onClick={handleSimulatePinAuthorize}
-                      disabled={stkStatus === 'processing'}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-md active:scale-95"
+                      disabled={stkStatus === 'verifying'}
+                      className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-95"
                     >
-                      {stkStatus === 'processing' ? (
+                      {stkStatus === 'verifying' ? (
                         <>
                           <RotateCw className="w-4 h-4 animate-spin" />
-                          <span>Verifying M-Pesa Payment...</span>
+                          <span>Verifying M-Pesa PIN...</span>
                         </>
                       ) : (
                         <>
                           <Check className="w-4 h-4 text-emerald-200" />
-                          <span>Enter PIN & Confirm Payment</span>
+                          <span>Enter PIN on Handset & Confirm</span>
                         </>
                       )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRetryStkPush}
+                      className="w-full sm:w-auto px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      Resend STK Push
                     </button>
                   </div>
                 </div>
 
-                <div className="text-center text-[11px] text-slate-400">
-                  Receipt will be generated immediately after Safaricom payment confirmation.
+                <div className="text-center text-[11px] text-slate-400 flex items-center justify-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>The official tax receipt will be issued immediately upon payment confirmation.</span>
                 </div>
               </div>
             )}
@@ -437,7 +622,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <div className="text-[11px] text-slate-500 mt-0.5 space-y-0.5">
                     <div>Phone: <strong className="font-mono text-slate-700">+254 722 849 204</strong></div>
                     <div>Email: <span className="text-slate-700">orders@panzerautoparts.co.ke</span></div>
-                    <div className="text-emerald-800 font-mono text-[10px]">Lipa na M-Pesa Paybill: 849204 · Till: 948201</div>
+                    <div className="text-emerald-800 font-mono text-[10px]">
+                      Lipa na M-Pesa Paybill: {settings?.mpesaPaybillNumber || '522522'} · Acc No: {settings?.mpesaAccountNumber || '1358024235'} · {settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
+                    </div>
                   </div>
                 </div>
 

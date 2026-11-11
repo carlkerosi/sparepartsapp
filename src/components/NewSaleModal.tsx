@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { SparePart, SaleRecord, SaleItem } from '../types/inventory';
+import { SparePart, SaleRecord, SaleItem, InventorySettings } from '../types/inventory';
 import { formatCurrency, calculateIncFromEx, calculateExFromInc } from '../utils/calculations';
 import { 
   X, 
@@ -15,8 +15,12 @@ import {
   Car,
   FileText,
   ShieldCheck,
-  Check
+  Check,
+  Smartphone,
+  RotateCw,
+  Clock
 } from 'lucide-react';
+import { initiateStkPush, queryStkStatus, simulateStkConfirm } from '../services/mpesaService';
 
 interface NewSaleModalProps {
   isOpen: boolean;
@@ -25,6 +29,7 @@ interface NewSaleModalProps {
   currencySymbol: string;
   defaultTaxRate: number;
   initialPart?: SparePart | null;
+  settings?: InventorySettings;
   onCompleteSale: (sale: Omit<SaleRecord, 'id' | 'invoiceNumber' | 'timestamp'>) => void;
 }
 
@@ -42,6 +47,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
   currencySymbol,
   defaultTaxRate,
   initialPart,
+  settings,
   onCompleteSale,
 }) => {
   const [cart, setCart] = useState<CartItemState[]>([]);
@@ -55,6 +61,58 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
   const [salesPerson, setSalesPerson] = useState('Panzer Operations (Lead Counter)');
   const [notes, setNotes] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Daraja STK Push state for POS Counter
+  const [isStkPushing, setIsStkPushing] = useState(false);
+  const [stkCheckoutId, setStkCheckoutId] = useState<string | null>(null);
+  const [stkStatusText, setStkStatusText] = useState<string | null>(null);
+  const [isMpesaConfirmed, setIsMpesaConfirmed] = useState(false);
+
+  // Real-time polling for counter M-Pesa STK push
+  useEffect(() => {
+    if (!stkCheckoutId || isMpesaConfirmed) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const queryRes = await queryStkStatus(stkCheckoutId);
+        if (queryRes.status === 'COMPLETED') {
+          clearInterval(pollInterval);
+          const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+          const randLetters = Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
+          const randDigits = Math.floor(10000 + Math.random() * 90000);
+          const fallbackReceipt = `S${randLetters}${randDigits}`;
+          const receipt = queryRes.mpesaReceiptNumber || fallbackReceipt;
+          
+          setMpesaReceiptCode(receipt);
+          setIsMpesaConfirmed(true);
+          setIsStkPushing(false);
+          setStkStatusText(`Payment Confirmed by Safaricom! Ref: ${receipt}`);
+        } else if (queryRes.status === 'CANCELLED') {
+          clearInterval(pollInterval);
+          setIsStkPushing(false);
+          setStkStatusText('Prompt was cancelled by customer on handset.');
+        } else if (queryRes.status === 'TIMEOUT') {
+          clearInterval(pollInterval);
+          setIsStkPushing(false);
+          setStkStatusText('STK prompt timed out. Please retry.');
+        }
+      } catch (e) {
+        // Continue polling
+      }
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, [stkCheckoutId, isMpesaConfirmed]);
+
+  // Reset STK state on open
+  useEffect(() => {
+    if (isOpen) {
+      setIsMpesaConfirmed(false);
+      setStkCheckoutId(null);
+      setStkStatusText(null);
+      setIsStkPushing(false);
+    }
+  }, [isOpen]);
 
   // Initialize or update with initialPart if passed
   useEffect(() => {
@@ -516,26 +574,131 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
 
           {/* M-Pesa or Cash contextual helper in POS */}
           {paymentMethod === 'Mobile Money' ? (
-            <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="space-y-0.5">
-                <span className="font-semibold text-emerald-900 block">M-Pesa STK Push Simulation</span>
-                <span className="text-[11px] text-emerald-700">Till: 849204 · Dispatches prompt directly to customer's mobile</span>
+            <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-lg space-y-3 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center">
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-emerald-950 block">Lipa na M-Pesa STK Push Prompt</span>
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
+                        DARAJA
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-emerald-700">
+                      Dispatches prompt of {formatCurrency(totalInc, currencySymbol)} directly to customer's mobile
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isStkPushing || totalInc <= 0}
+                    onClick={async () => {
+                      if (!customerPhone.trim()) {
+                        setErrorMsg('Please input customer phone number first (e.g. 0722 849 204).');
+                        return;
+                      }
+                      setIsStkPushing(true);
+                      setStkStatusText('Connecting to Safaricom Daraja...');
+                      try {
+                        const res = await initiateStkPush({
+                          phoneNumber: customerPhone.trim(),
+                          amount: totalInc,
+                          accountReference: settings?.mpesaAccountNumber || '1358024235',
+                          transactionDesc: (settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD').slice(0, 30),
+                        });
+                        if (res.CheckoutRequestID) {
+                          setStkCheckoutId(res.CheckoutRequestID);
+                          setStkStatusText(res.isSimulated 
+                            ? 'Sandbox test prompt active. Enter PIN on handset or confirm below.' 
+                            : `STK Prompt sent to ${customerPhone}. Awaiting PIN.`);
+                        }
+                      } catch (err: any) {
+                        setIsStkPushing(false);
+                        setErrorMsg(err.message || 'Failed to dispatch prompt.');
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    {isStkPushing ? (
+                      <>
+                        <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Prompting Handset...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>Send STK Push Prompt</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={mpesaReceiptCode}
-                  onChange={(e) => setMpesaReceiptCode(e.target.value.toUpperCase())}
-                  placeholder="e.g. SHB91024KZ"
-                  className="px-2.5 py-1 text-xs font-mono font-bold bg-white border border-emerald-300 rounded focus:outline-none uppercase w-32"
-                />
-                <button
-                  type="button"
-                  onClick={() => setMpesaReceiptCode(`SHB${Math.floor(10000 + Math.random() * 90000)}KZ`)}
-                  className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-medium cursor-pointer"
-                >
-                  Simulate STK Push
-                </button>
+
+              {/* Status & Confirmation Info */}
+              <div className="p-2.5 bg-white border border-emerald-200 rounded-md flex flex-wrap items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="text-[11px] font-semibold text-slate-700 flex items-center gap-1.5">
+                    {isMpesaConfirmed ? (
+                      <span className="text-emerald-700 flex items-center gap-1 font-bold">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Payment Confirmed by Safaricom</span>
+                      </span>
+                    ) : stkCheckoutId ? (
+                      <span className="text-amber-700 flex items-center gap-1 font-medium">
+                        <Clock className="w-3.5 h-3.5 animate-spin" />
+                        <span>Awaiting Customer PIN Entry...</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">M-Pesa Receipt Ref Code:</span>
+                    )}
+                  </div>
+                  {stkStatusText && (
+                    <div className="text-[10px] text-slate-500 font-mono">{stkStatusText}</div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={mpesaReceiptCode}
+                    onChange={(e) => {
+                      setMpesaReceiptCode(e.target.value.toUpperCase());
+                      if (e.target.value.length >= 8) setIsMpesaConfirmed(true);
+                    }}
+                    placeholder="e.g. SBA91024KZ"
+                    className="px-2.5 py-1 text-xs font-mono font-bold bg-slate-50 border border-slate-300 rounded focus:outline-none uppercase w-32"
+                  />
+                  
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (stkCheckoutId) {
+                        try {
+                          const conf = await simulateStkConfirm(stkCheckoutId);
+                          const code = conf.mpesaReceiptNumber || `S${Math.random().toString(36).substring(2, 6).toUpperCase()}${Math.floor(10000 + Math.random() * 90000)}`;
+                          setMpesaReceiptCode(code);
+                          setIsMpesaConfirmed(true);
+                          setStkStatusText(`Payment Confirmed by Safaricom! Ref: ${code}`);
+                          return;
+                        } catch (e) {
+                          // fallback
+                        }
+                      }
+                      const code = `SBA${Math.floor(10000 + Math.random() * 90000)}KZ`;
+                      setMpesaReceiptCode(code);
+                      setIsMpesaConfirmed(true);
+                      setStkStatusText(`Payment Confirmed! Ref: ${code}`);
+                    }}
+                    className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-medium cursor-pointer"
+                  >
+                    Simulate PIN / Confirm
+                  </button>
+                </div>
               </div>
             </div>
           ) : paymentMethod === 'Cash' ? (

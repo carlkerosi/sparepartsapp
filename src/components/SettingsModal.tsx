@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { InventorySettings, AdminAccount, AdminRole } from '../types/inventory';
 import { 
   X, 
@@ -20,9 +20,14 @@ import {
   Sparkles,
   Key,
   Eye,
-  EyeOff
+  EyeOff,
+  Smartphone,
+  Copy,
+  ExternalLink,
+  Lock
 } from 'lucide-react';
 import { checkFirebaseConnection, FirebaseConnectionStatus } from '../lib/firebase';
+import { testDarajaCredentials, updateDarajaConfig, getMpesaStatus, MpesaStatusResponse } from '../services/mpesaService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -68,16 +73,116 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
   const [adminSuccessMsg, setAdminSuccessMsg] = useState<string | null>(null);
 
+  // M-Pesa Daraja Firebase Storage & Test State
+  const [serverMpesaStatus, setServerMpesaStatus] = useState<MpesaStatusResponse | null>(null);
+  const [testingDaraja, setTestingDaraja] = useState(false);
+  const [darajaTestStatus, setDarajaTestStatus] = useState<{ success: boolean; message: string; tokenPreview?: string } | null>(null);
+  const [showDarajaSecret, setShowDarajaSecret] = useState(false);
+  const [copiedCallback, setCopiedCallback] = useState(false);
+  const [savingDarajaToFirebase, setSavingDarajaToFirebase] = useState(false);
+  const [darajaFirebaseSavedMsg, setDarajaFirebaseSavedMsg] = useState<string | null>(null);
+
+  // Query server for active Daraja credentials on open
+  useEffect(() => {
+    if (isOpen) {
+      getMpesaStatus()
+        .then((res) => {
+          setServerMpesaStatus(res);
+          setForm((prev) => ({
+            ...prev,
+            mpesaShortcode: (res.shortcode && res.shortcode !== '174379') ? res.shortcode : '522522',
+            mpesaAccountNumber: res.accountNumber || prev.mpesaAccountNumber || '1358024235',
+            mpesaAccountName: res.accountName || prev.mpesaAccountName || 'PANZER AUTOPARTS LTD',
+          }));
+        })
+        .catch(console.error);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // Save public business settings (sanitized, zero secrets stored in localStorage or /settings/current)
     onSaveSettings(form);
+
+    // If new secrets were entered, securely persist them to Firebase Firestore via backend
+    if (form.mpesaConsumerKey?.trim() || form.mpesaConsumerSecret?.trim() || form.mpesaPasskey?.trim() || form.mpesaShortcode || form.mpesaAccountNumber) {
+      updateDarajaConfig({
+        consumerKey: form.mpesaConsumerKey?.trim(),
+        consumerSecret: form.mpesaConsumerSecret?.trim(),
+        shortcode: form.mpesaShortcode || form.mpesaPaybillNumber || '522522',
+        accountNumber: form.mpesaAccountNumber || '1358024235',
+        accountName: form.mpesaAccountName || 'PANZER AUTOPARTS LTD',
+        passkey: form.mpesaPasskey?.trim(),
+        environment: form.mpesaEnvironment || 'sandbox',
+      }).catch(console.error);
+    }
+
     setSavedNotice(true);
     setTimeout(() => {
       setSavedNotice(false);
       onClose();
     }, 800);
+  };
+
+  const handleSaveDarajaToFirebase = async () => {
+    if (!form.mpesaConsumerKey?.trim() && !form.mpesaConsumerSecret?.trim() && !form.mpesaPasskey?.trim()) {
+      setDarajaFirebaseSavedMsg('Please enter Consumer Key, Secret or Passkey first.');
+      return;
+    }
+    setSavingDarajaToFirebase(true);
+    setDarajaFirebaseSavedMsg(null);
+    try {
+      const res = await updateDarajaConfig({
+        consumerKey: form.mpesaConsumerKey?.trim(),
+        consumerSecret: form.mpesaConsumerSecret?.trim(),
+        shortcode: form.mpesaShortcode || form.mpesaPaybillNumber || '522522',
+        accountNumber: form.mpesaAccountNumber || '1358024235',
+        accountName: form.mpesaAccountName || 'PANZER AUTOPARTS LTD',
+        passkey: form.mpesaPasskey?.trim(),
+        environment: form.mpesaEnvironment || 'sandbox',
+      });
+      setDarajaFirebaseSavedMsg(res.message || 'Credentials securely stored in Firebase Firestore!');
+      const freshStatus = await getMpesaStatus();
+      setServerMpesaStatus(freshStatus);
+      setTimeout(() => setDarajaFirebaseSavedMsg(null), 4000);
+    } catch (err: any) {
+      setDarajaFirebaseSavedMsg('Failed to save to Firebase: ' + err.message);
+    } finally {
+      setSavingDarajaToFirebase(false);
+    }
+  };
+
+  const handleTestDaraja = async () => {
+    const key = form.mpesaConsumerKey?.trim();
+    const secret = form.mpesaConsumerSecret?.trim();
+
+    if (!key && !secret && !serverMpesaStatus?.configured) {
+      setDarajaTestStatus({
+        success: false,
+        message: 'Please enter both Consumer Key and Consumer Secret from your Daraja Sandbox app first.',
+      });
+      return;
+    }
+
+    setTestingDaraja(true);
+    setDarajaTestStatus(null);
+    try {
+      const res = await testDarajaCredentials({
+        consumerKey: key || '',
+        consumerSecret: secret || '',
+        environment: form.mpesaEnvironment || 'sandbox',
+      });
+      setDarajaTestStatus(res);
+    } catch (err: any) {
+      setDarajaTestStatus({
+        success: false,
+        message: err.message || 'Failed to authenticate with Safaricom Daraja API.',
+      });
+    } finally {
+      setTestingDaraja(false);
+    }
   };
 
   const handleTestFirebase = async () => {
@@ -455,10 +560,36 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </label>
               <input
                 type="text"
-                value={form.mpesaPaybillNumber || ''}
+                value={form.mpesaPaybillNumber || '522522'}
                 onChange={(e) => setForm({ ...form, mpesaPaybillNumber: e.target.value })}
-                placeholder="e.g. 849204"
+                placeholder="522522"
                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                M-Pesa Account No. (Acc No)
+              </label>
+              <input
+                type="text"
+                value={form.mpesaAccountNumber || '1358024235'}
+                onChange={(e) => setForm({ ...form, mpesaAccountNumber: e.target.value })}
+                placeholder="1358024235"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs font-semibold text-emerald-800"
+              />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">
+                Account / Till Name
+              </label>
+              <input
+                type="text"
+                value={form.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
+                onChange={(e) => setForm({ ...form, mpesaAccountName: e.target.value })}
+                placeholder="PANZER AUTOPARTS LTD"
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs font-semibold"
               />
             </div>
 
@@ -468,11 +599,262 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </label>
               <input
                 type="text"
-                value={form.mpesaTillNumber || ''}
+                value={form.mpesaTillNumber || '522522'}
                 onChange={(e) => setForm({ ...form, mpesaTillNumber: e.target.value })}
-                placeholder="e.g. 948201"
+                placeholder="522522"
                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs"
               />
+            </div>
+          </div>
+
+          {/* ============================================================= */}
+          {/* 3B. SAFARICOM M-PESA DARAJA SANDBOX INTEGRATION               */}
+          {/* ============================================================= */}
+          <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-emerald-600 text-white flex items-center justify-center">
+                  <Smartphone className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>M-Pesa Daraja Sandbox Configuration</span>
+                    <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 font-mono rounded border border-emerald-300">
+                      STK Push
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-slate-500">
+                    Connect your app from developer.safaricom.co.ke for real customer STK push prompts
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleTestDaraja}
+                  disabled={testingDaraja}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded border border-emerald-300 cursor-pointer transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${testingDaraja ? 'animate-spin' : ''}`} />
+                  <span>{testingDaraja ? 'Testing...' : 'Test Daraja API'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Firebase Security & Storage Banner */}
+            <div className="p-2.5 bg-emerald-900/5 border border-emerald-300/80 rounded-lg flex items-start gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+              <div className="text-[11px] text-slate-800 space-y-0.5 flex-1">
+                <div className="font-bold text-emerald-950 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span>Stored in Firebase Firestore</span>
+                    <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 font-mono rounded border border-emerald-300">
+                      /settings/secrets
+                    </span>
+                  </span>
+                  <span className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Server-Side Isolated
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-600 leading-tight">
+                  Your Daraja Consumer Key, Secret, and Passkey are stored securely in your Firebase Firestore database and loaded server-side only. Client browsers cannot read secrets, and they are never stored in browser localStorage.
+                </p>
+                {serverMpesaStatus?.configured && (
+                  <div className="pt-1 flex items-center gap-2 text-[10px] text-emerald-900 font-mono font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
+                    <span>Active Key in Firestore: {serverMpesaStatus.maskedConsumerKey || 'Configured (Masked)'}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Test Status Banner */}
+            {darajaTestStatus && (
+              <div className={`p-2.5 rounded-lg border flex items-center gap-2 text-xs ${
+                darajaTestStatus.success 
+                  ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900' 
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}>
+                {darajaTestStatus.success ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-700" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                )}
+                <div>
+                  <div className="font-semibold">{darajaTestStatus.message}</div>
+                  {darajaTestStatus.tokenPreview && (
+                    <div className="text-[10px] font-mono text-emerald-700 mt-0.5">
+                      Bearer Token: {darajaTestStatus.tokenPreview}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Firebase Save Status Message */}
+            {darajaFirebaseSavedMsg && (
+              <div className="p-2 bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-lg text-xs font-semibold flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-emerald-700" />
+                <span>{darajaFirebaseSavedMsg}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Daraja Consumer Key
+                </label>
+                <input
+                  type="text"
+                  value={form.mpesaConsumerKey || ''}
+                  onChange={(e) => setForm({ ...form, mpesaConsumerKey: e.target.value.trim() })}
+                  placeholder={serverMpesaStatus?.maskedConsumerKey ? `Saved: ${serverMpesaStatus.maskedConsumerKey}` : "Paste Consumer Key from Daraja app"}
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    Daraja Consumer Secret
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowDarajaSecret(!showDarajaSecret)}
+                    className="text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-0.5 cursor-pointer"
+                  >
+                    {showDarajaSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showDarajaSecret ? 'Hide' : 'Show'}</span>
+                  </button>
+                </div>
+                <input
+                  type={showDarajaSecret ? 'text' : 'password'}
+                  value={form.mpesaConsumerSecret || ''}
+                  onChange={(e) => setForm({ ...form, mpesaConsumerSecret: e.target.value.trim() })}
+                  placeholder={serverMpesaStatus?.configured ? "••••••••••••••••••••••••••••••••" : "Paste Consumer Secret from Daraja app"}
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  M-Pesa Shortcode (Business / Paybill)
+                </label>
+                <input
+                  type="text"
+                  value={form.mpesaShortcode || '522522'}
+                  onChange={(e) => setForm({ ...form, mpesaShortcode: e.target.value.trim() })}
+                  placeholder="522522"
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 font-bold"
+                />
+                <span className="text-[10px] text-emerald-700 mt-0.5 block font-medium">Paybill No: 522522</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  M-Pesa Account No. (AccountReference)
+                </label>
+                <input
+                  type="text"
+                  value={form.mpesaAccountNumber || '1358024235'}
+                  onChange={(e) => setForm({ ...form, mpesaAccountNumber: e.target.value.trim() })}
+                  placeholder="1358024235"
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 font-bold text-emerald-800"
+                />
+                <span className="text-[10px] text-emerald-700 mt-0.5 block font-medium">Acc No: 1358024235 ({form.mpesaAccountName || 'PANZER AUTOPARTS LTD'})</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Account / Till Name
+                </label>
+                <input
+                  type="text"
+                  value={form.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
+                  onChange={(e) => setForm({ ...form, mpesaAccountName: e.target.value.trim() })}
+                  placeholder="PANZER AUTOPARTS LTD"
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600 font-bold"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Merchant account name</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Sandbox Passkey (Lipa na M-Pesa Online)
+                </label>
+                <input
+                  type="password"
+                  value={form.mpesaPasskey || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'}
+                  onChange={(e) => setForm({ ...form, mpesaPasskey: e.target.value.trim() })}
+                  placeholder="bfb279f9aa9bdbcf..."
+                  className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">Standard Safaricom Sandbox passkey prefilled</span>
+              </div>
+            </div>
+
+            {/* Save directly to Firebase button */}
+            {(form.mpesaConsumerKey || form.mpesaConsumerSecret || form.mpesaPasskey) && (
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleSaveDarajaToFirebase}
+                  disabled={savingDarajaToFirebase}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 shadow-2xs"
+                >
+                  <Lock className={`w-3.5 h-3.5 ${savingDarajaToFirebase ? 'animate-spin' : ''}`} />
+                  <span>{savingDarajaToFirebase ? 'Saving to Firebase...' : 'Save Credentials to Firebase'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Live Callback Webhook URL */}
+            <div className="pt-2 border-t border-emerald-200/80">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-semibold text-slate-700">
+                  Your Live M-Pesa Callback URL (Webhook)
+                </label>
+                <span className="text-[10px] text-emerald-700 font-medium">Automatic / Ready</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/api/mpesa/callback` : 'https://ais-pre-mv7ldzdjmmo75pxhj6bimh-448542184449.europe-west2.run.app/api/mpesa/callback'}
+                  className="w-full p-2 bg-slate-900 text-emerald-400 border border-slate-700 rounded-lg font-mono text-[11px] select-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const url = typeof window !== 'undefined' ? `${window.location.origin}/api/mpesa/callback` : 'https://ais-pre-mv7ldzdjmmo75pxhj6bimh-448542184449.europe-west2.run.app/api/mpesa/callback';
+                    navigator.clipboard.writeText(url);
+                    setCopiedCallback(true);
+                    setTimeout(() => setCopiedCallback(false), 2000);
+                  }}
+                  className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors shadow-2xs"
+                >
+                  {copiedCallback ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy URL</span>
+                    </>
+                  )}
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                This URL is built into your backend. If Safaricom's simulator or portal asks for a "CallBackURL", paste this link.
+              </p>
             </div>
           </div>
 

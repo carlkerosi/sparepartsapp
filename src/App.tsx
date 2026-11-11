@@ -53,6 +53,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { SuppliersManagement } from './components/SuppliersManagement';
 import { SupplierModal } from './components/SupplierModal';
 import { SupplierPartsDrawer } from './components/SupplierPartsDrawer';
+import { updateDarajaConfig } from './services/mpesaService';
 
 // Storefront Customer Components
 import { StorefrontHeader } from './components/storefront/StorefrontHeader';
@@ -181,6 +182,14 @@ export default function App() {
       (newSettings) => {
         setSettings(newSettings);
         saveSettings(newSettings);
+        // Sync Firebase settings to Daraja backend proxy
+        updateDarajaConfig({
+          consumerKey: newSettings.mpesaConsumerKey,
+          consumerSecret: newSettings.mpesaConsumerSecret,
+          shortcode: newSettings.mpesaShortcode || newSettings.mpesaPaybillNumber || newSettings.mpesaTillNumber || '174379',
+          passkey: newSettings.mpesaPasskey,
+          environment: newSettings.mpesaEnvironment || 'sandbox',
+        }).catch(console.error);
       },
       (err) => console.warn('Using local settings cache:', err)
     );
@@ -833,6 +842,15 @@ export default function App() {
       } catch (err) {
         console.warn('Firebase settings save cached:', err);
       }
+
+      // Sync Daraja credentials to backend proxy
+      updateDarajaConfig({
+        consumerKey: newSettings.mpesaConsumerKey,
+        consumerSecret: newSettings.mpesaConsumerSecret,
+        shortcode: newSettings.mpesaShortcode || '174379',
+        passkey: newSettings.mpesaPasskey,
+        environment: newSettings.mpesaEnvironment || 'sandbox',
+      }).catch(console.error);
     },
     []
   );
@@ -1229,6 +1247,7 @@ export default function App() {
         items={cartItems}
         currencySymbol={settings.currencySymbol}
         defaultTaxRate={settings.defaultTaxRatePercent}
+        settings={settings}
         onPlaceOrder={handlePlaceCustomerOrder}
         onViewInvoiceReceipt={(sale) => {
           setActiveReceiptSale(sale);
@@ -1281,6 +1300,7 @@ export default function App() {
         currencySymbol={settings.currencySymbol}
         defaultTaxRate={settings.defaultTaxRatePercent}
         initialPart={saleInitialPart}
+        settings={settings}
         onCompleteSale={handleCompleteSale}
       />
 

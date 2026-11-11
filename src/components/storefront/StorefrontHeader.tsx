@@ -37,7 +37,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       {/* Top Banner Notice */}
       <div className="bg-slate-900 text-slate-300 px-4 py-1.5 text-[11px] text-center font-medium">
-        <span>Range Rover Genuine & OEM Spares · Nairobi Hub & Express Dispatch · Landed Costing in KSh</span>
+        <span>Range Rover Genuine & OEM Spares · Nairobi Central Inventory · Lipa na M-Pesa Paybill 522522</span>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -77,7 +77,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
                       : 'border-transparent text-slate-600 hover:border-slate-300'
                   }`}
                 >
-                  {cat === 'ALL' ? 'All Catalog' : cat}
+                  {cat === 'ALL' ? 'All Catalogue' : cat}
                 </button>
               );
             })}
@@ -136,7 +136,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
                 : 'text-slate-600 hover:text-slate-900 bg-white border border-slate-200'
             }`}
           >
-            {cat === 'ALL' ? 'All Catalog' : cat}
+            {cat === 'ALL' ? 'All Catalogue' : cat}
           </button>
         ))}
       </div>

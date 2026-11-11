@@ -345,6 +345,40 @@
           "type": "string",
           "maxLength": 30
         },
+        "mpesaAccountNumber": {
+          "type": "string",
+          "description": "Account number for Lipa na M-Pesa Paybill",
+          "maxLength": 30
+        },
+        "mpesaAccountName": {
+          "type": "string",
+          "description": "Account or business name for M-Pesa Till / Paybill",
+          "maxLength": 100
+        },
+        "mpesaConsumerKey": {
+          "type": "string",
+          "description": "Safaricom Daraja API Consumer Key",
+          "maxLength": 128
+        },
+        "mpesaConsumerSecret": {
+          "type": "string",
+          "description": "Safaricom Daraja API Consumer Secret",
+          "maxLength": 128
+        },
+        "mpesaPasskey": {
+          "type": "string",
+          "description": "Safaricom Daraja Lipa na M-Pesa Online passkey",
+          "maxLength": 128
+        },
+        "mpesaShortcode": {
+          "type": "string",
+          "description": "Daraja Business ShortCode / Paybill / Till",
+          "maxLength": 30
+        },
+        "mpesaEnvironment": {
+          "type": "string",
+          "enum": ["sandbox", "production"]
+        },
         "businessEmail": {
           "type": "string",
           "maxLength": 120
@@ -403,6 +437,46 @@
         }
       },
       "required": ["email", "displayName", "role", "status"]
+    },
+    "ApiCredential": {
+      "title": "ApiCredential",
+      "description": "Secure server-side API integration credentials and secrets locked from public client exposure",
+      "type": "object",
+      "properties": {
+        "service": {
+          "type": "string",
+          "description": "Integration service identifier (e.g. mpesa)",
+          "maxLength": 50
+        },
+        "consumerKey": {
+          "type": "string",
+          "description": "API Consumer Key",
+          "maxLength": 128
+        },
+        "consumerSecret": {
+          "type": "string",
+          "description": "API Consumer Secret (server-side only)",
+          "maxLength": 128
+        },
+        "passkey": {
+          "type": "string",
+          "description": "M-Pesa Online passkey",
+          "maxLength": 128
+        },
+        "shortcode": {
+          "type": "string",
+          "description": "Business Shortcode / Paybill",
+          "maxLength": 30
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["sandbox", "production"]
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": ["service"]
     }
   },
   "firestore": {
@@ -429,6 +503,10 @@
     "/admins/{adminId}": {
       "schema": "AdminAccount",
       "description": "Authorized administrative team accounts and role assignments"
+    },
+    "/api_credentials/{credentialId}": {
+      "schema": "ApiCredential",
+      "description": "Secure server-side API integration secrets and keys locked from public client bundles"
     }
   }
 }

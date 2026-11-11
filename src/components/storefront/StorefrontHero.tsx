@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, ShieldCheck, Truck, FileText, CheckCircle2 } from 'lucide-react';
+import { Search, CheckCircle2 } from 'lucide-react';
 
 interface StorefrontHeroProps {
   onSearchVehicle: (query: string) => void;
@@ -67,13 +67,13 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
           {/* Left Column: Editorial Headline & Value Prop */}
           <div className="lg:col-span-7 space-y-4">
             <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
-              <span className="text-emerald-400 font-semibold">Nairobi & Major Transit Hubs</span>
+              <span className="text-emerald-400 font-semibold">Nairobi Central Inventory</span>
               <span aria-hidden="true">·</span>
               <span>Range Rover Specialist</span>
               <span aria-hidden="true">·</span>
               <span>Landed Cost in KSh</span>
               <span aria-hidden="true">·</span>
-              <span>Lipa na M-Pesa & Cash</span>
+              <span>M-Pesa Paybill 522522</span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-white leading-tight">
@@ -91,11 +91,11 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
                 onClick={onExploreCatalog}
                 className="px-5 py-2.5 text-xs font-semibold text-slate-950 bg-white hover:bg-slate-100 rounded-lg transition-colors cursor-pointer shadow-sm"
               >
-                Browse Range Rover Inventory
+                Browse All Catalogue
               </button>
               <div className="text-xs text-slate-400 flex items-center gap-2 font-mono">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Instant M-Pesa STK prompt or Cash on delivery</span>
+                <span>Instant M-Pesa STK Prompt · Paybill 522522</span>
               </div>
             </div>
           </div>
@@ -184,39 +184,6 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
                   <span>Search Matched Parts</span>
                 </button>
               </form>
-            </div>
-          </div>
-        </div>
-
-        {/* Full-width 3-pillar trust strip below hero */}
-        <div className="mt-10 pt-6 border-t border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-6 text-slate-300">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-white/5 border border-white/10 shrink-0">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-white">100% Genuine OEM & Tier-1</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Sourced from Akebono, Denso, Mann+Hummel, Brembo, KYB & Aisin.</div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-white/5 border border-white/10 shrink-0">
-              <Truck className="w-5 h-5 text-sky-400" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-white">Same-Day Dispatch & Pickup</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Nairobi delivery in 2-4 hours; express dispatch to major Kenyan transit hubs.</div>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-white/5 border border-white/10 shrink-0">
-              <FileText className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-white">Official Tax Invoices & Receipts</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Formal company receipts with vehicle registration and workshop job card tracking.</div>
             </div>
           </div>
         </div>

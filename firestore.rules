@@ -120,6 +120,13 @@ service cloud.firestore {
         && (!('businessRegNumber' in data) || (data.businessRegNumber is string && data.businessRegNumber.size() <= 100))
         && (!('mpesaPaybillNumber' in data) || (data.mpesaPaybillNumber is string && data.mpesaPaybillNumber.size() <= 30))
         && (!('mpesaTillNumber' in data) || (data.mpesaTillNumber is string && data.mpesaTillNumber.size() <= 30))
+        && (!('mpesaAccountNumber' in data) || (data.mpesaAccountNumber is string && data.mpesaAccountNumber.size() <= 30))
+        && (!('mpesaAccountName' in data) || (data.mpesaAccountName is string && data.mpesaAccountName.size() <= 100))
+        && (!('mpesaConsumerKey' in data) || (data.mpesaConsumerKey is string && data.mpesaConsumerKey.size() <= 128))
+        && (!('mpesaConsumerSecret' in data) || (data.mpesaConsumerSecret is string && data.mpesaConsumerSecret.size() <= 128))
+        && (!('mpesaPasskey' in data) || (data.mpesaPasskey is string && data.mpesaPasskey.size() <= 128))
+        && (!('mpesaShortcode' in data) || (data.mpesaShortcode is string && data.mpesaShortcode.size() <= 30))
+        && (!('mpesaEnvironment' in data) || (data.mpesaEnvironment in ['sandbox', 'production']))
         && (!('businessEmail' in data) || (data.businessEmail is string && data.businessEmail.size() <= 120))
         && (!('adminAccessCode' in data) || (data.adminAccessCode is string && data.adminAccessCode.size() <= 30));
     }
@@ -136,6 +143,7 @@ service cloud.firestore {
         && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60))
         && (!('lastLogin' in data) || (data.lastLogin is string && data.lastLogin.size() <= 60));
     }
+
 
     // ==========================================
     // COLLECTION ACCESS POLICIES
@@ -170,10 +178,9 @@ service cloud.firestore {
       allow update, delete: if false; // Audit movements are strictly append-only
     }
 
-    // Business Settings & Currency Rates
+    // Business Settings & Daraja API Configuration
     match /settings/{settingId} {
-      allow read: if true;
-      allow create, update: if isValidId(settingId) && isValidSettings(incoming());
+      allow read, create, update: if isValidId(settingId);
       allow delete: if false;
     }
 
@@ -184,9 +191,9 @@ service cloud.firestore {
       allow delete: if isValidId(adminId);
     }
 
-    // Operational Connection Health Probe
+    // Operational Connection Health Probe (Restricted to health check probe document)
     match /test/{docId} {
-      allow read, write: if isValidId(docId);
+      allow read, write: if isValidId(docId) && docId == 'connection_probe';
     }
   }
 }

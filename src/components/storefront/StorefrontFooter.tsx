@@ -66,12 +66,12 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
             </h4>
             <ul className="space-y-1.5 text-xs text-slate-400 font-mono">
               <li className="bg-slate-950/60 p-1.5 rounded border border-slate-800">
-                <span className="text-[10px] text-emerald-400 uppercase block font-sans font-semibold">Lipa na M-Pesa Paybill / Business No:</span>
-                <strong className="text-white text-xs">{settings.mpesaPaybillNumber || '849204'}</strong> · Acc: <span className="text-slate-300">Part SKU</span>
+                <span className="text-[10px] text-emerald-400 uppercase block font-sans font-semibold">Lipa na M-Pesa Paybill:</span>
+                <strong className="text-white text-xs">{settings.mpesaPaybillNumber || '522522'}</strong> · Acc No: <strong className="text-emerald-400 text-xs">{settings.mpesaAccountNumber || '1358024235'}</strong>
               </li>
               <li className="bg-slate-950/60 p-1.5 rounded border border-slate-800">
-                <span className="text-[10px] text-emerald-400 uppercase block font-sans font-semibold">M-Pesa Buy Goods Till No:</span>
-                <strong className="text-white text-xs">{settings.mpesaTillNumber || '948201'}</strong>
+                <span className="text-[10px] text-emerald-400 uppercase block font-sans font-semibold">Account / Till Name:</span>
+                <strong className="text-white text-xs">{settings.mpesaAccountName || 'PANZER AUTOPARTS LTD'}</strong>
               </li>
               <li className="pt-0.5">
                 <span className="font-sans text-[11px] text-slate-400">BRS Company Reg:</span>{' '}
