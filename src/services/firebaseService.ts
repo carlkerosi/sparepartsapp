@@ -33,19 +33,9 @@ export function subscribeSuppliers(
 
   return onSnapshot(
     colRef,
-    async (snapshot) => {
+    (snapshot) => {
       if (snapshot.empty) {
-        // Seed initial suppliers to Firestore
-        try {
-          const batch = writeBatch(db);
-          for (const s of INITIAL_SUPPLIERS) {
-            batch.set(doc(db, path, s.id), s);
-          }
-          await batch.commit();
-        } catch (e) {
-          console.warn('Initial supplier seeding skipped:', e);
-        }
-        onUpdate(INITIAL_SUPPLIERS);
+        onUpdate([]);
         return;
       }
 
@@ -74,19 +64,9 @@ export function subscribeParts(
 
   return onSnapshot(
     colRef,
-    async (snapshot) => {
+    (snapshot) => {
       if (snapshot.empty) {
-        // Seed initial parts to Firestore
-        try {
-          const batch = writeBatch(db);
-          for (const p of INITIAL_PARTS) {
-            batch.set(doc(db, path, p.id), p);
-          }
-          await batch.commit();
-        } catch (e) {
-          console.warn('Initial parts seeding skipped:', e);
-        }
-        onUpdate(INITIAL_PARTS);
+        onUpdate([]);
         return;
       }
 
@@ -94,22 +74,6 @@ export function subscribeParts(
       snapshot.forEach((d) => {
         items.push({ ...(d.data() as SparePart), id: d.id });
       });
-
-      // If Firestore contains outdated data without the Range Rover specific parts catalog, sync initial parts
-      const hasSpecificCatalog = items.some((p) => p.id === 'part-rr-brk-disc-f');
-      if (!hasSpecificCatalog && INITIAL_PARTS.length > 0) {
-        try {
-          const batch = writeBatch(db);
-          for (const p of INITIAL_PARTS) {
-            batch.set(doc(db, path, p.id), p);
-          }
-          await batch.commit();
-        } catch (e) {
-          console.warn('Range Rover specific parts sync to Firestore failed:', e);
-        }
-        onUpdate(INITIAL_PARTS);
-        return;
-      }
 
       onUpdate(items);
     },
@@ -131,18 +95,9 @@ export function subscribeSales(
 
   return onSnapshot(
     colRef,
-    async (snapshot) => {
+    (snapshot) => {
       if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          for (const s of INITIAL_SALES) {
-            batch.set(doc(db, path, s.id), s);
-          }
-          await batch.commit();
-        } catch (e) {
-          console.warn('Initial sales seeding skipped:', e);
-        }
-        onUpdate(INITIAL_SALES);
+        onUpdate([]);
         return;
       }
 
@@ -171,18 +126,9 @@ export function subscribeMovements(
 
   return onSnapshot(
     colRef,
-    async (snapshot) => {
+    (snapshot) => {
       if (snapshot.empty) {
-        try {
-          const batch = writeBatch(db);
-          for (const m of INITIAL_MOVEMENTS) {
-            batch.set(doc(db, path, m.id), m);
-          }
-          await batch.commit();
-        } catch (e) {
-          console.warn('Initial movements seeding skipped:', e);
-        }
-        onUpdate(INITIAL_MOVEMENTS);
+        onUpdate([]);
         return;
       }
 
@@ -255,6 +201,29 @@ export async function saveMovementToFirestore(movement: StockMovement): Promise<
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+
+export async function clearAllInventoryFromFirestore(): Promise<void> {
+  const collectionsToClear = [
+    COLLECTIONS.PARTS,
+    COLLECTIONS.SUPPLIERS,
+    COLLECTIONS.SALES,
+    COLLECTIONS.MOVEMENTS,
+  ];
+  for (const colName of collectionsToClear) {
+    try {
+      const snap = await getDocs(collection(db, colName));
+      if (!snap.empty) {
+        const batch = writeBatch(db);
+        snap.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn(`Failed to clear collection ${colName}:`, e);
+    }
+  }
+}
+
 
 // 5. Subscribe to Settings
 export function subscribeSettings(

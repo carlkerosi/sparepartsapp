@@ -309,16 +309,20 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
               <tr>
                 <td colSpan={10} className="py-12 text-center text-slate-500">
                   <PackagePlus className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                  <p className="text-sm font-medium text-slate-700">No spare parts match your filter</p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Try adjusting your search query, status filters, or add a new part.
+                  <p className="text-sm font-medium text-slate-700">
+                    {parts.length === 0 ? 'Your inventory catalog is ready' : 'No spare parts match your filter'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    {parts.length === 0
+                      ? 'All demo records have been cleared. Click below to add your first actual spare part with OEM code and landed cost.'
+                      : 'Try adjusting your search query, status filters, or add a new part.'}
                   </p>
                   <button
                     onClick={onOpenNewPart}
                     className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Add New Part</span>
+                    <span>{parts.length === 0 ? 'Add Your First Part' : 'Add New Part'}</span>
                   </button>
                 </td>
               </tr>

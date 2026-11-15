@@ -201,7 +201,15 @@ export const StorefrontCatalog: React.FC<StorefrontCatalogProps> = ({
       </div>
 
       {/* Product Grid */}
-      {filteredParts.length === 0 ? (
+      {parts.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center max-w-md mx-auto my-8">
+          <Package className="w-12 h-12 text-slate-300 mx-auto mb-3 stroke-1" />
+          <h3 className="text-base font-bold text-slate-900">Inventory Catalogue Ready</h3>
+          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+            All demo records have been cleared. You can now add your genuine spare parts and stock levels through the Admin Inventory portal.
+          </p>
+        </div>
+      ) : filteredParts.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center max-w-md mx-auto my-8">
           <Package className="w-12 h-12 text-slate-300 mx-auto mb-3 stroke-1" />
           <h3 className="text-base font-bold text-slate-900">No matching spare parts found</h3>

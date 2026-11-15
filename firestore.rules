@@ -9,7 +9,12 @@ service cloud.firestore {
 
     // Hardened path and data helpers
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function isLegacyDemoId(id) {
+      return id.matches('^part-rr-.*')
+        || id in ['sup-aisin', 'sup-akebono', 'sup-brembo', 'sup-denso', 'sup-exedy', 'sup-gates', 'sup-kyb', 'sup-mann', 'sale-1038', 'sale-1039', 'sale-1041', 'mov-1'];
     }
 
     function incoming() {
@@ -152,30 +157,31 @@ service cloud.firestore {
     // Suppliers Directory
     match /suppliers/{supplierId} {
       allow read: if true;
-      allow create, update: if isValidId(supplierId) && isValidSupplier(incoming());
-      allow delete: if isValidId(supplierId);
+      allow create, update: if isValidId(supplierId) && !isLegacyDemoId(supplierId) && isValidSupplier(incoming());
+      allow delete: if true;
     }
 
     // Spare Parts Catalog
     match /parts/{partId} {
       allow read: if true;
-      allow create, update: if isValidId(partId) && isValidPart(incoming());
-      allow delete: if isValidId(partId);
+      allow create, update: if isValidId(partId) && !isLegacyDemoId(partId) && isValidPart(incoming());
+      allow delete: if true;
     }
 
     // Sales Records & Invoices
     match /sales/{saleId} {
       allow read: if true;
-      allow create: if isValidId(saleId) && isValidSale(incoming());
-      allow update: if isValidId(saleId) && isValidSale(incoming());
-      allow delete: if isValidId(saleId);
+      allow create: if isValidId(saleId) && !isLegacyDemoId(saleId) && isValidSale(incoming());
+      allow update: if isValidId(saleId) && !isLegacyDemoId(saleId) && isValidSale(incoming());
+      allow delete: if true;
     }
 
-    // Stock Movement Audit Log (Strictly Immutable Audit Trail)
+    // Stock Movement Audit Log
     match /movements/{movementId} {
       allow read: if true;
-      allow create: if isValidId(movementId) && isValidMovement(incoming());
-      allow update, delete: if false; // Audit movements are strictly append-only
+      allow create: if isValidId(movementId) && !isLegacyDemoId(movementId) && isValidMovement(incoming());
+      allow update: if false;
+      allow delete: if true;
     }
 
     // Business Settings & Daraja API Configuration

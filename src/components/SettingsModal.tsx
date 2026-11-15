@@ -947,14 +947,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
 
           {/* ============================================================= */}
-          {/* 6. RESET DEMO DATA                                            */}
+          {/* 6. CLEAR INVENTORY & DEMO DATA                                */}
           {/* ============================================================= */}
           <div className="pt-3 border-t border-slate-200">
             <span className="block font-semibold text-rose-700 mb-1">
-              Reset System Data
+              Clear All Inventory & Demo Records
             </span>
             <p className="text-[11px] text-slate-500 mb-2">
-              Reset inventory catalog, stock levels, and sales ledger back to the preloaded automotive demonstration database.
+              Remove all spare parts, suppliers, sales records, and stock movements to start with a clean, empty inventory for entering your actual data. Store credentials, Paybill settings, and admin logins are preserved.
             </p>
             {!showResetConfirm ? (
               <button
@@ -963,13 +963,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="px-3 py-1.5 text-xs text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center gap-1.5 cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>Reset to Sample Catalog</span>
+                <span>Clear All Catalog & Sales Data</span>
               </button>
             ) : (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg space-y-2">
                 <div className="flex items-center gap-2 text-rose-800 font-semibold text-xs">
                   <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
-                  <span>Are you sure? This will replace your current edits with initial sample parts.</span>
+                  <span>Are you sure? This will wipe all current parts, suppliers, sales records, and audit logs.</span>
                 </div>
                 <div className="flex justify-end gap-2">
                   <button
@@ -988,7 +988,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     }}
                     className="px-3 py-1 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded cursor-pointer"
                   >
-                    Yes, Reset Everything
+                    Yes, Clear Everything
                   </button>
                 </div>
               </div>

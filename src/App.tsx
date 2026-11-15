@@ -35,7 +35,8 @@ import {
   saveAdminAccountToFirestore,
   deleteAdminAccountFromFirestore,
   signInWithGoogleAdmin,
-  signOutAdmin
+  signOutAdmin,
+  clearAllInventoryFromFirestore
 } from './services/firebaseService';
 import { calculateInventoryMetrics, calculateSalesMetrics, calculateIncFromEx } from './utils/calculations';
 import { Header, ActiveTab } from './components/Header';
@@ -822,7 +823,7 @@ export default function App() {
     setIsNewSaleModalOpen(true);
   }, []);
 
-  // Reset Data to sample
+  // Reset / Clear Data
   const handleResetData = useCallback(() => {
     const data = resetAllData();
     setSuppliers(data.suppliers);
@@ -830,6 +831,9 @@ export default function App() {
     setSales(data.sales);
     setMovements(data.movements);
     setSettings(loadSettings());
+    clearAllInventoryFromFirestore().catch((err) => {
+      console.warn('Failed to clear Firestore inventory documents:', err);
+    });
   }, []);
 
   // Save Settings to Firestore and local storage

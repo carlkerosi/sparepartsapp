@@ -2,13 +2,20 @@ import { SparePart, SaleRecord, StockMovement, InventorySettings, Supplier, Admi
 import { INITIAL_PARTS, INITIAL_SALES, INITIAL_MOVEMENTS, DEFAULT_SETTINGS, INITIAL_SUPPLIERS, INITIAL_ADMINS } from '../data/initialData';
 
 const STORAGE_KEYS = {
-  SUPPLIERS: 'panzer_suppliers_v5',
-  PARTS: 'panzer_parts_v5',
-  SALES: 'panzer_sales_v5',
-  MOVEMENTS: 'panzer_movements_v5',
-  SETTINGS: 'panzer_settings_v5',
-  ADMINS: 'panzer_admins_v5',
+  SUPPLIERS: 'panzer_suppliers_v6',
+  PARTS: 'panzer_parts_v6',
+  SALES: 'panzer_sales_v6',
+  MOVEMENTS: 'panzer_movements_v6',
+  SETTINGS: 'panzer_settings_v6',
+  ADMINS: 'panzer_admins_v6',
 };
+
+// Clean legacy demo entries from previous versions if present
+try {
+  ['panzer_parts_v5', 'panzer_suppliers_v5', 'panzer_sales_v5', 'panzer_movements_v5'].forEach((k) => {
+    localStorage.removeItem(k);
+  });
+} catch (_) {}
 
 export function loadSuppliers(): Supplier[] {
   try {
@@ -17,7 +24,8 @@ export function loadSuppliers(): Supplier[] {
       saveSuppliers(INITIAL_SUPPLIERS);
       return INITIAL_SUPPLIERS;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : INITIAL_SUPPLIERS;
   } catch (err) {
     console.error('Failed to load suppliers from localStorage', err);
     return INITIAL_SUPPLIERS;
@@ -40,19 +48,7 @@ export function loadParts(): SparePart[] {
       return INITIAL_PARTS;
     }
     const parsed = JSON.parse(raw);
-    const hasStrictRangeRoverCatalog = parsed.some((p: SparePart) => p.id === 'part-rr-brk-disc-f');
-    if (!Array.isArray(parsed) || !hasStrictRangeRoverCatalog) {
-      saveParts(INITIAL_PARTS);
-      return INITIAL_PARTS;
-    }
-    const synced = parsed.map((p: SparePart) => {
-      const initial = INITIAL_PARTS.find((ip) => ip.id === p.id);
-      if (initial && initial.imageUrl && p.imageUrl !== initial.imageUrl) {
-        return { ...p, imageUrl: initial.imageUrl };
-      }
-      return p;
-    });
-    return synced;
+    return Array.isArray(parsed) ? parsed : INITIAL_PARTS;
   } catch (err) {
     console.error('Failed to load parts from localStorage', err);
     return INITIAL_PARTS;
@@ -74,7 +70,8 @@ export function loadSales(): SaleRecord[] {
       saveSales(INITIAL_SALES);
       return INITIAL_SALES;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : INITIAL_SALES;
   } catch (err) {
     console.error('Failed to load sales from localStorage', err);
     return INITIAL_SALES;
@@ -96,7 +93,8 @@ export function loadMovements(): StockMovement[] {
       saveMovements(INITIAL_MOVEMENTS);
       return INITIAL_MOVEMENTS;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : INITIAL_MOVEMENTS;
   } catch (err) {
     console.error('Failed to load movements from localStorage', err);
     return INITIAL_MOVEMENTS;
