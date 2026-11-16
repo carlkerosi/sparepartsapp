@@ -103,19 +103,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedForm: InventorySettings = {
+      ...form,
+      mpesaPaybillNumber: form.mpesaPaybillNumber && form.mpesaPaybillNumber !== '174379' ? form.mpesaPaybillNumber.trim() : '522522',
+      mpesaTillNumber: form.mpesaTillNumber && form.mpesaTillNumber !== '174379' && form.mpesaTillNumber !== '948201' ? form.mpesaTillNumber.trim() : '522522',
+      mpesaShortcode: form.mpesaShortcode && form.mpesaShortcode !== '174379' ? form.mpesaShortcode.trim() : '522522',
+      mpesaAccountNumber: form.mpesaAccountNumber?.trim() || '1358024235',
+      mpesaAccountName: form.mpesaAccountName?.trim() || 'PANZER AUTOPARTS LTD',
+    };
     // Save public business settings (sanitized, zero secrets stored in localStorage or /settings/current)
-    onSaveSettings(form);
+    onSaveSettings(normalizedForm);
 
-    // If new secrets were entered, securely persist them to Firebase Firestore via backend
-    if (form.mpesaConsumerKey?.trim() || form.mpesaConsumerSecret?.trim() || form.mpesaPasskey?.trim() || form.mpesaShortcode || form.mpesaAccountNumber) {
+    // If new secrets or M-Pesa config were entered, securely persist them to Firebase Firestore via backend
+    if (normalizedForm.mpesaConsumerKey?.trim() || normalizedForm.mpesaConsumerSecret?.trim() || normalizedForm.mpesaPasskey?.trim() || normalizedForm.mpesaShortcode || normalizedForm.mpesaAccountNumber) {
       updateDarajaConfig({
-        consumerKey: form.mpesaConsumerKey?.trim(),
-        consumerSecret: form.mpesaConsumerSecret?.trim(),
-        shortcode: form.mpesaShortcode || form.mpesaPaybillNumber || '522522',
-        accountNumber: form.mpesaAccountNumber || '1358024235',
-        accountName: form.mpesaAccountName || 'PANZER AUTOPARTS LTD',
-        passkey: form.mpesaPasskey?.trim(),
-        environment: form.mpesaEnvironment || 'sandbox',
+        consumerKey: normalizedForm.mpesaConsumerKey?.trim(),
+        consumerSecret: normalizedForm.mpesaConsumerSecret?.trim(),
+        shortcode: normalizedForm.mpesaShortcode || normalizedForm.mpesaPaybillNumber || '522522',
+        accountNumber: normalizedForm.mpesaAccountNumber || '1358024235',
+        accountName: normalizedForm.mpesaAccountName || 'PANZER AUTOPARTS LTD',
+        passkey: normalizedForm.mpesaPasskey?.trim(),
+        environment: normalizedForm.mpesaEnvironment || 'sandbox',
       }).catch(console.error);
     }
 
@@ -786,7 +794,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Sandbox Passkey (Lipa na M-Pesa Online)
+                  Daraja Passkey (Lipa na M-Pesa Online)
                 </label>
                 <input
                   type="password"
@@ -797,6 +805,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 />
                 <span className="text-[10px] text-slate-400 mt-0.5 block">Standard Safaricom Sandbox passkey prefilled</span>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                Daraja Gateway Environment
+              </label>
+              <select
+                value={form.mpesaEnvironment || 'sandbox'}
+                onChange={(e) => setForm({ ...form, mpesaEnvironment: e.target.value as 'sandbox' | 'production' })}
+                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-600 cursor-pointer"
+              >
+                <option value="sandbox">Sandbox (Testing & Simulated STK for Paybill 522522)</option>
+                <option value="production">Production (Live Handset Prompts for Paybill 522522 / Acc 1358024235)</option>
+              </select>
             </div>
 
             {/* Save directly to Firebase button */}

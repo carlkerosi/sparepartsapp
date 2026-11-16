@@ -584,11 +584,11 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     <div className="flex items-center gap-1.5">
                       <span className="font-bold text-emerald-950 block">Lipa na M-Pesa STK Push Prompt</span>
                       <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
-                        DARAJA
+                        PAYBILL {(settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379') ? settings.mpesaPaybillNumber : '522522'}
                       </span>
                     </div>
-                    <span className="text-[11px] text-emerald-700">
-                      Dispatches prompt of {formatCurrency(totalInc, currencySymbol)} directly to customer's mobile
+                    <span className="text-[11px] text-emerald-700 block">
+                      Dispatches prompt of {formatCurrency(totalInc, currencySymbol)} · Acc No: <strong className="font-mono">{settings?.mpesaAccountNumber || '1358024235'}</strong> · {settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
                     </span>
                   </div>
                 </div>
@@ -602,6 +602,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                         setErrorMsg('Please input customer phone number first (e.g. 0722 849 204).');
                         return;
                       }
+                      setErrorMsg(null);
                       setIsStkPushing(true);
                       setStkStatusText('Connecting to Safaricom Daraja...');
                       try {
@@ -609,17 +610,21 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                           phoneNumber: customerPhone.trim(),
                           amount: totalInc,
                           accountReference: settings?.mpesaAccountNumber || '1358024235',
-                          transactionDesc: (settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD').slice(0, 30),
+                          transactionDesc: 'PANZER PARTS',
                         });
                         if (res.CheckoutRequestID) {
                           setStkCheckoutId(res.CheckoutRequestID);
                           setStkStatusText(res.isSimulated 
-                            ? 'Sandbox test prompt active. Enter PIN on handset or confirm below.' 
-                            : `STK Prompt sent to ${customerPhone}. Awaiting PIN.`);
+                            ? `Sandbox prompt active (Paybill ${res.shortcode || '522522'} · Acc ${res.accountNumber || '1358024235'}). Enter PIN or click confirm.` 
+                            : `STK Prompt sent to ${customerPhone} (Paybill ${res.shortcode || '522522'} · Acc ${res.accountNumber || '1358024235'}). Awaiting PIN.`);
+                        } else {
+                          throw new Error(res.error || 'Failed to dispatch prompt.');
                         }
                       } catch (err: any) {
                         setIsStkPushing(false);
-                        setErrorMsg(err.message || 'Failed to dispatch prompt.');
+                        const msg = err.message || 'Failed to dispatch prompt.';
+                        setErrorMsg(msg);
+                        setStkStatusText(msg);
                       }
                     }}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"

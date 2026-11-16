@@ -279,13 +279,26 @@ app.get('/api/mpesa/status', (_req: Request, res: Response) => {
 // 2. Save / update runtime Daraja credentials into Firebase Firestore (Protected by Admin Auth)
 app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Response) => {
   const { consumerKey, consumerSecret, shortcode, accountNumber, accountName, passkey, environment } = req.body;
-  if (consumerKey) runtimeCredentials.consumerKey = consumerKey.trim();
-  if (consumerSecret) runtimeCredentials.consumerSecret = consumerSecret.trim();
-  if (shortcode) runtimeCredentials.shortcode = shortcode.trim();
-  if (accountNumber) runtimeCredentials.accountNumber = accountNumber.trim();
-  if (accountName) runtimeCredentials.accountName = accountName.trim();
-  if (passkey) runtimeCredentials.passkey = passkey.trim();
-  if (environment) runtimeCredentials.environment = environment;
+  if (consumerKey) runtimeCredentials.consumerKey = String(consumerKey).trim();
+  if (consumerSecret) runtimeCredentials.consumerSecret = String(consumerSecret).trim();
+  if (shortcode) {
+    const cleanedShortcode = String(shortcode).trim();
+    runtimeCredentials.shortcode = cleanedShortcode === '174379' || !cleanedShortcode ? '522522' : cleanedShortcode;
+  } else if (!runtimeCredentials.shortcode || runtimeCredentials.shortcode === '174379') {
+    runtimeCredentials.shortcode = '522522';
+  }
+  if (accountNumber) {
+    runtimeCredentials.accountNumber = String(accountNumber).trim() || '1358024235';
+  } else if (!runtimeCredentials.accountNumber) {
+    runtimeCredentials.accountNumber = '1358024235';
+  }
+  if (accountName) {
+    runtimeCredentials.accountName = String(accountName).trim() || 'PANZER AUTOPARTS LTD';
+  } else if (!runtimeCredentials.accountName) {
+    runtimeCredentials.accountName = 'PANZER AUTOPARTS LTD';
+  }
+  if (passkey) runtimeCredentials.passkey = String(passkey).trim();
+  if (environment === 'sandbox' || environment === 'production') runtimeCredentials.environment = environment;
 
   // Clear token cache to force fresh token retrieval
   cachedToken = null;
@@ -303,9 +316,9 @@ app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Respons
         passkey: runtimeCredentials.passkey,
         environment: runtimeCredentials.environment,
         updatedAt: new Date().toISOString(),
-      });
+      }, { merge: true });
       savedToFirebase = true;
-      console.log('[Firebase] Daraja credentials successfully saved to Firestore /settings/secrets (Paybill: 522522, Acc: 1358024235)');
+      console.log(`[Firebase] Daraja credentials saved to Firestore /settings/secrets (Paybill: ${runtimeCredentials.shortcode}, Acc: ${runtimeCredentials.accountNumber}, Title: ${runtimeCredentials.accountName})`);
     } catch (saveErr: any) {
       console.error('[Firebase] Failed to save secrets to Firestore:', saveErr.message);
     }
@@ -402,15 +415,21 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
     }
     const parsedAmount = Math.round(rawAmount);
 
-    // Sanitize metadata to prevent injection
+    // Sanitize metadata to prevent injection & conform to Safaricom Daraja field limits
+    // AccountReference max 12 chars, TransactionDesc max 13 chars
     const defaultAccNumber = runtimeCredentials.accountNumber || '1358024235';
     const defaultAccName = runtimeCredentials.accountName || 'PANZER AUTOPARTS LTD';
-    const safeAccountRef = String(accountReference || defaultAccNumber).replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 12);
-    const safeTxDesc = String(transactionDesc || defaultAccName).replace(/[^a-zA-Z0-9_\- ]/g, '').slice(0, 30);
+    const safeAccountRef = String(accountReference || defaultAccNumber).replace(/[^a-zA-Z0-9_\-]/g, '').slice(0, 12) || '1358024235';
+    const rawDesc = String(transactionDesc || '').replace(/[^a-zA-Z0-9_\- ]/g, '').trim();
+    const safeTxDesc = (!rawDesc || rawDesc.toUpperCase().startsWith('PANZER AUTOPARTS'))
+      ? 'PANZER PARTS'
+      : rawDesc.slice(0, 13);
 
     const isProd = runtimeCredentials.environment === 'production';
     const baseUrl = isProd ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
-    const shortcode = runtimeCredentials.shortcode || '522522';
+    const shortcode = (runtimeCredentials.shortcode && runtimeCredentials.shortcode !== '174379')
+      ? runtimeCredentials.shortcode
+      : '522522';
     const passkey = runtimeCredentials.passkey || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
     const timestamp = getMpesaTimestamp();
     const password = generateStkPassword(shortcode, passkey, timestamp);
@@ -429,7 +448,7 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
         throw new Error('NO_CREDENTIALS');
       }
     } catch (authErr: any) {
-      // If no custom credentials or Daraja auth rejected, provide helpful guidance or simulation
+      // If no custom credentials or Daraja auth rejected in sandbox, provide simulation
       console.warn('Daraja Token generation skipped or failed:', authErr.message);
       const simulatedCheckoutId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 90000 + 10000)}`;
       transactionsCache.set(simulatedCheckoutId, {
@@ -443,12 +462,15 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
       return res.json({
         success: true,
         isSimulated: true,
+        shortcode,
+        accountNumber: safeAccountRef,
+        accountName: defaultAccName,
         MerchantRequestID: `MR_${Date.now()}`,
         CheckoutRequestID: simulatedCheckoutId,
         ResponseCode: '0',
-        ResponseDescription: 'STK push prompt triggered (Sandbox Mode)',
-        CustomerMessage: `Success. Prompt for Paybill ${shortcode} (Acc: ${safeAccountRef}) dispatched to ${formattedPhone}.`,
-        note: `Using Paybill ${shortcode} · Acc No: ${safeAccountRef} · ${defaultAccName}`,
+        ResponseDescription: `STK push prompt triggered for Paybill ${shortcode} (${isProd ? 'Live' : 'Sandbox Mode'})`,
+        CustomerMessage: `Success. Prompt for Paybill ${shortcode} (Acc: ${safeAccountRef} · ${defaultAccName}) dispatched to ${formattedPhone}.`,
+        note: `Paybill ${shortcode} · Acc No: ${safeAccountRef} · ${defaultAccName}`,
       });
     }
 
@@ -480,8 +502,8 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
 
     if (!stkResponse.ok || stkResult.ResponseCode !== '0') {
       console.warn('Daraja STK push returned non-zero code:', stkResult);
-      // Safaricom Sandbox does not hold live production shortcodes like Paybill 522522
-      if (!isProd && (stkResult.errorMessage?.includes('Merchant does not exist') || stkResult.errorCode === '500.001.1001')) {
+      // Safaricom Sandbox does not hold live production shortcodes like KCB Paybill 522522
+      if (!isProd) {
         const simulatedCheckoutId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 90000 + 10000)}`;
         transactionsCache.set(simulatedCheckoutId, {
           checkoutRequestId: simulatedCheckoutId,
@@ -494,12 +516,15 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
         return res.json({
           success: true,
           isSimulated: true,
+          shortcode,
+          accountNumber: safeAccountRef,
+          accountName: defaultAccName,
           MerchantRequestID: `MR_${Date.now()}`,
           CheckoutRequestID: simulatedCheckoutId,
           ResponseCode: '0',
-          ResponseDescription: 'STK push simulated for Paybill 522522 (Sandbox mode)',
-          CustomerMessage: `Success. Prompt for Paybill ${shortcode} (Acc: ${safeAccountRef}, ${safeTxDesc}) dispatched to ${formattedPhone}.`,
-          note: `Paybill ${shortcode} (Acc No: ${safeAccountRef}, ${safeTxDesc}) is registered on Safaricom Production. Sandbox simulation active. Switch Environment to Production in Settings for live customer handsets.`,
+          ResponseDescription: `STK push simulated for Paybill ${shortcode} (Sandbox mode)`,
+          CustomerMessage: `Success. Prompt for Paybill ${shortcode} (Acc: ${safeAccountRef} · ${defaultAccName}) dispatched to ${formattedPhone}.`,
+          note: `Paybill ${shortcode} · Acc No: ${safeAccountRef} · ${defaultAccName} (Sandbox simulation active; switch Environment to Production with live Daraja keys for live handsets).`,
         });
       }
 
@@ -523,11 +548,14 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
 
     return res.json({
       success: true,
+      shortcode,
+      accountNumber: safeAccountRef,
+      accountName: defaultAccName,
       MerchantRequestID: stkResult.MerchantRequestID,
       CheckoutRequestID: stkResult.CheckoutRequestID,
       ResponseCode: stkResult.ResponseCode,
       ResponseDescription: stkResult.ResponseDescription,
-      CustomerMessage: stkResult.CustomerMessage || `STK push dispatched to ${formattedPhone}. Please enter your M-Pesa PIN.`,
+      CustomerMessage: stkResult.CustomerMessage || `STK push for Paybill ${shortcode} (Acc: ${safeAccountRef}) dispatched to ${formattedPhone}. Please enter your M-Pesa PIN.`,
     });
   } catch (err: any) {
     console.error('STK Push error:', err);

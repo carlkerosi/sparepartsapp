@@ -161,22 +161,24 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           phoneNumber: customerPhone.trim(),
           amount: totalInc,
           accountReference: settings?.mpesaAccountNumber || '1358024235',
-          transactionDesc: (settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD').slice(0, 30),
+          transactionDesc: 'PANZER PARTS',
         });
 
         if (stkResult.CheckoutRequestID) {
           setCheckoutRequestId(stkResult.CheckoutRequestID);
           setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push dispatched to ${customerPhone}.`);
           setDarajaStatusNote(stkResult.isSimulated 
-            ? 'Daraja Sandbox test prompt active. Enter PIN on handset or click confirm below.' 
-            : 'Daraja STK push dispatched. Check handset screen to enter your M-Pesa PIN.');
+            ? `Daraja Sandbox prompt active for Paybill ${stkResult.shortcode || '522522'} · Acc No ${stkResult.accountNumber || '1358024235'}. Enter PIN or click confirm below.` 
+            : `Daraja STK push dispatched (Paybill ${stkResult.shortcode || '522522'} · Acc ${stkResult.accountNumber || '1358024235'}). Check handset screen to enter your M-Pesa PIN.`);
           setStkStatus('prompting');
         } else {
           throw new Error(stkResult.error || 'Failed to dispatch Lipa na M-Pesa prompt.');
         }
       } catch (err: any) {
         console.error('STK push error:', err);
-        setErrorMessage(err.message || 'Unable to trigger M-Pesa prompt. Please verify phone number format (07XXXXXXXX or 2547XXXXXXXX).');
+        const msg = err.message || 'Unable to trigger M-Pesa prompt. Please verify phone number format (07XXXXXXXX or 2547XXXXXXXX).';
+        setErrorMessage(msg);
+        setDarajaStatusNote(msg);
         setStkStatus('failed');
       }
     } else {
@@ -222,16 +224,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         phoneNumber: customerPhone.trim(),
         amount: totalInc,
         accountReference: settings?.mpesaAccountNumber || '1358024235',
-        transactionDesc: (settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD').slice(0, 30),
+        transactionDesc: 'PANZER PARTS',
       });
       if (stkResult.CheckoutRequestID) {
         setCheckoutRequestId(stkResult.CheckoutRequestID);
         setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push sent to ${customerPhone}.`);
-        setDarajaStatusNote('Prompt resent. Check handset screen to enter PIN.');
+        setDarajaStatusNote(stkResult.isSimulated
+          ? `Sandbox prompt resent for Paybill ${stkResult.shortcode || '522522'} · Acc No ${stkResult.accountNumber || '1358024235'}.`
+          : 'Prompt resent. Check handset screen to enter PIN.');
         setStkStatus('prompting');
+      } else {
+        throw new Error(stkResult.error || 'Retry failed to dispatch Lipa na M-Pesa prompt.');
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Retry failed.');
+      const msg = err.message || 'Retry failed.';
+      setErrorMessage(msg);
+      setDarajaStatusNote(msg);
       setStkStatus('failed');
     }
   };
@@ -304,7 +312,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       LIPA NA M-PESA ONLINE
                     </span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
-                      DARAJA SANDBOX
+                      {settings?.mpesaEnvironment === 'production' ? 'DARAJA LIVE' : 'DARAJA SANDBOX'}
                     </span>
                   </div>
                   <h3 className="text-sm font-bold text-white">Safaricom Payment Prompt</h3>
@@ -345,10 +353,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
                 <div>
                   <h4 className="text-base font-bold text-white">
-                    {stkStatus === 'cancelled' ? 'Transaction Cancelled' : 'STK Push Prompt Expired'}
+                    {stkStatus === 'cancelled' ? 'Transaction Cancelled' : 'STK Push Prompt Failed'}
                   </h4>
-                  <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                    {darajaStatusNote || 'The payment request was not completed. You can resend the prompt or try another payment method.'}
+                  <p className="text-xs text-slate-300 mt-1 max-w-md mx-auto">
+                    {errorMessage || darajaStatusNote || 'The payment request was not completed. You can resend the prompt or try another payment method.'}
                   </p>
                 </div>
                 <div className="flex justify-center gap-2 pt-2">
@@ -403,7 +411,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       To: <strong className="text-white">{settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}</strong>
                     </p>
                     <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-400 pt-1">
-                      <div>Paybill No: <span className="text-white font-mono font-bold">{settings?.mpesaPaybillNumber || '522522'}</span></div>
+                      <div>Paybill No: <span className="text-white font-mono font-bold">{(settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379') ? settings.mpesaPaybillNumber : '522522'}</span></div>
                       <div>Acc No: <span className="text-white font-mono font-bold">{settings?.mpesaAccountNumber || '1358024235'}</span></div>
                     </div>
                     <div className="text-[11px] text-slate-400 pt-0.5">
@@ -510,9 +518,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               ) : (
                 <div className="space-y-2">
                   <div className="p-2.5 bg-white border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
-                    <div className="text-slate-500">Panzer Autoparts Limited Bank Wire:</div>
-                    <div className="font-bold text-slate-900">NCBA Bank Kenya · Acc: 8492019482</div>
-                    <div className="text-slate-600">Branch: Industrial Area, Nairobi</div>
+                    <div className="text-slate-500">Panzer Autoparts Limited Bank Deposit / RTGS:</div>
+                    <div className="font-bold text-slate-900">KCB Bank Kenya · Acc: 1358024235</div>
+                    <div className="text-slate-700 font-semibold">Account Title: PANZER AUTOPARTS LTD</div>
+                    <div className="text-emerald-700">M-Pesa Paybill: 522522 · Acc No: 1358024235</div>
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
@@ -953,7 +962,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                     <div className="mt-2">
                       <div className="text-xs font-bold text-slate-900">Bank Wire / RTGS</div>
-                      <div className="text-[10px] text-slate-500">NCBA / KCB Bank</div>
+                      <div className="text-[10px] text-slate-500">KCB Bank · 1358024235</div>
                     </div>
                   </button>
                 </div>

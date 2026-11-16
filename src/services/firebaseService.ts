@@ -246,7 +246,16 @@ export function subscribeSettings(
         return;
       }
       const data = snapshot.data() as InventorySettings;
-      onUpdate({ ...DEFAULT_SETTINGS, ...data });
+      const merged: InventorySettings = {
+        ...DEFAULT_SETTINGS,
+        ...data,
+        mpesaPaybillNumber: !data.mpesaPaybillNumber || data.mpesaPaybillNumber === '174379' ? '522522' : data.mpesaPaybillNumber,
+        mpesaTillNumber: !data.mpesaTillNumber || data.mpesaTillNumber === '948201' || data.mpesaTillNumber === '174379' ? '522522' : data.mpesaTillNumber,
+        mpesaShortcode: !data.mpesaShortcode || data.mpesaShortcode === '174379' ? '522522' : data.mpesaShortcode,
+        mpesaAccountNumber: data.mpesaAccountNumber || '1358024235',
+        mpesaAccountName: data.mpesaAccountName || 'PANZER AUTOPARTS LTD',
+      };
+      onUpdate(merged);
     },
     (err) => {
       console.warn('Firestore onSnapshot settings error:', err);

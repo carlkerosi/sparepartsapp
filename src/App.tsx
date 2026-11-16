@@ -183,14 +183,6 @@ export default function App() {
       (newSettings) => {
         setSettings(newSettings);
         saveSettings(newSettings);
-        // Sync Firebase settings to Daraja backend proxy
-        updateDarajaConfig({
-          consumerKey: newSettings.mpesaConsumerKey,
-          consumerSecret: newSettings.mpesaConsumerSecret,
-          shortcode: newSettings.mpesaShortcode || newSettings.mpesaPaybillNumber || newSettings.mpesaTillNumber || '174379',
-          passkey: newSettings.mpesaPasskey,
-          environment: newSettings.mpesaEnvironment || 'sandbox',
-        }).catch(console.error);
       },
       (err) => console.warn('Using local settings cache:', err)
     );
@@ -848,10 +840,19 @@ export default function App() {
       }
 
       // Sync Daraja credentials to backend proxy
+      const normalizedShortcode =
+        newSettings.mpesaShortcode && newSettings.mpesaShortcode !== '174379'
+          ? newSettings.mpesaShortcode
+          : newSettings.mpesaPaybillNumber && newSettings.mpesaPaybillNumber !== '174379'
+            ? newSettings.mpesaPaybillNumber
+            : '522522';
+
       updateDarajaConfig({
         consumerKey: newSettings.mpesaConsumerKey,
         consumerSecret: newSettings.mpesaConsumerSecret,
-        shortcode: newSettings.mpesaShortcode || '174379',
+        shortcode: normalizedShortcode,
+        accountNumber: newSettings.mpesaAccountNumber || '1358024235',
+        accountName: newSettings.mpesaAccountName || 'PANZER AUTOPARTS LTD',
         passkey: newSettings.mpesaPasskey,
         environment: newSettings.mpesaEnvironment || 'sandbox',
       }).catch(console.error);

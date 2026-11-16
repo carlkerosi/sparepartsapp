@@ -19,6 +19,9 @@ export interface MpesaStatusResponse {
 
 export interface StkPushResponse {
   success: boolean;
+  shortcode?: string;
+  accountNumber?: string;
+  accountName?: string;
   MerchantRequestID?: string;
   CheckoutRequestID?: string;
   ResponseCode?: string;
@@ -62,7 +65,9 @@ export async function getMpesaStatus(): Promise<MpesaStatusResponse> {
     return {
       status: 'offline',
       environment: 'sandbox',
-      shortcode: '174379',
+      shortcode: '522522',
+      accountNumber: '1358024235',
+      accountName: 'PANZER AUTOPARTS LTD',
       configured: false,
       hasCustomCredentials: false,
       message: 'Server proxy initializing or running in offline mode',
@@ -112,7 +117,7 @@ export async function queryStkStatus(checkoutRequestId: string): Promise<StkQuer
 
 function getAdminKey(): string {
   try {
-    const raw = localStorage.getItem('panzer_settings_v5');
+    const raw = localStorage.getItem('panzer_settings_v6') || localStorage.getItem('panzer_settings_v5');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed.adminAccessCode) return parsed.adminAccessCode;
