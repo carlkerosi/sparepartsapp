@@ -35,11 +35,6 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      {/* Top Banner Notice */}
-      <div className="bg-slate-900 text-slate-300 px-4 py-1.5 text-[11px] text-center font-medium">
-        <span>Range Rover Genuine & OEM Spares · Nairobi Central Inventory · Lipa na M-Pesa Paybill 522522</span>
-      </div>
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between gap-8 h-16">
           {/* Zone 1: Single Brand Wordmark with double-click admin access */}

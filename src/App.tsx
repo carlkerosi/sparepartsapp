@@ -58,7 +58,6 @@ import { updateDarajaConfig } from './services/mpesaService';
 
 // Storefront Customer Components
 import { StorefrontHeader } from './components/storefront/StorefrontHeader';
-import { StorefrontHero } from './components/storefront/StorefrontHero';
 import { StorefrontCatalog } from './components/storefront/StorefrontCatalog';
 import { StorefrontFooter } from './components/storefront/StorefrontFooter';
 import { CartDrawer, CartItem } from './components/storefront/CartDrawer';
@@ -989,19 +988,6 @@ export default function App() {
             onOpenCart={() => setIsCartOpen(true)}
             searchQuery={storefrontSearch}
             onSearchChange={setStorefrontSearch}
-          />
-
-          {/* Storefront Hero with Vehicle Fitment Selector */}
-          <StorefrontHero
-            onSearchVehicle={(query) => {
-              setStorefrontSearch(query);
-              const el = document.getElementById('catalog-section');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
-            onExploreCatalog={() => {
-              const el = document.getElementById('catalog-section');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
           />
 
           {/* Storefront Catalog Grid */}
