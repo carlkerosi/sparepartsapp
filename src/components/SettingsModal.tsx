@@ -727,39 +727,65 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
 
-            {/* Prominent Gateway Environment Switcher */}
-            <div className="p-3 bg-white border border-emerald-200 rounded-lg space-y-2">
-              <label className="block text-[11px] font-bold text-slate-800">
-                Daraja Gateway Environment
-              </label>
-              <div className="grid grid-cols-2 gap-2">
+            {/* Big Prominent Gateway Environment Switcher */}
+            <div className="p-3.5 bg-white border-2 border-emerald-300 rounded-xl space-y-2.5 shadow-2xs">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-900">
+                  Daraja Gateway Environment
+                </label>
+                <span className="text-[10px] font-mono text-slate-500">
+                  Current: <strong className={form.mpesaEnvironment === 'production' ? 'text-emerald-700' : 'text-amber-700'}>
+                    {form.mpesaEnvironment === 'production' ? 'PRODUCTION (LIVE)' : 'SANDBOX (TESTING)'}
+                  </strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, mpesaEnvironment: 'sandbox' })}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                  className={`py-3 px-4 rounded-xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
                     (form.mpesaEnvironment || 'sandbox') === 'sandbox'
-                      ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500'
-                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                      ? 'border-amber-600 bg-amber-500 text-white shadow-sm ring-2 ring-amber-300'
+                      : 'border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-800'
                   }`}
                 >
-                  <div className="text-xs font-bold text-slate-900">Sandbox (Testing)</div>
-                  <div className="text-[10px] text-slate-600 mt-0.5">Simulated STK for Paybill 522522</div>
+                  <div>
+                    <div className="text-xs font-bold">Sandbox (Testing)</div>
+                    <div className={`text-[10px] mt-0.5 ${(form.mpesaEnvironment || 'sandbox') === 'sandbox' ? 'text-amber-50' : 'text-slate-600'}`}>
+                      Simulated STK for testing
+                    </div>
+                  </div>
+                  <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase shrink-0 ${
+                    (form.mpesaEnvironment || 'sandbox') === 'sandbox'
+                      ? 'bg-white text-amber-700'
+                      : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {(form.mpesaEnvironment || 'sandbox') === 'sandbox' ? 'Active' : 'Select'}
+                  </span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, mpesaEnvironment: 'production' })}
-                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                  className={`py-3 px-4 rounded-xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
                     form.mpesaEnvironment === 'production'
-                      ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600'
-                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                      ? 'border-emerald-700 bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300'
+                      : 'border-emerald-600 bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
                   }`}
                 >
-                  <div className="text-xs font-bold text-emerald-950">Production (Live)</div>
-                  <div className="text-[10px] text-emerald-800 mt-0.5">Live phone STK for Paybill 522522</div>
+                  <div>
+                    <div className="text-xs font-bold">Production (Live)</div>
+                    <div className="text-[10px] text-emerald-50 mt-0.5">
+                      Live phone STK for Paybill 522522
+                    </div>
+                  </div>
+                  <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase shrink-0 bg-white text-emerald-800">
+                    {form.mpesaEnvironment === 'production' ? 'Active' : 'Go Live'}
+                  </span>
                 </button>
               </div>
-              <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 leading-relaxed">
-                <strong>Important for Paybill 522522:</strong> Safaricom&apos;s <strong>Sandbox</strong> rejects live Paybill <code>522522</code> (<code>Merchant does not exist</code>). Select <strong>Production (Live)</strong>, paste your Production Consumer Key, Consumer Secret, and Passkey below, then click <strong>Save M-Pesa Config to Firebase</strong>.
+              <p className="text-[10px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2 leading-relaxed">
+                <strong>Important for Paybill 522522:</strong> Safaricom&apos;s <strong>Sandbox</strong> rejects live Paybill <code>522522</code> (<code>Merchant does not exist</code>). Click <strong>Production (Live)</strong> above, paste your Production Consumer Key, Consumer Secret, and Passkey below, then click <strong>Save M-Pesa Config to Firebase</strong>.
               </p>
             </div>
 

@@ -583,35 +583,40 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     <Smartphone className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-emerald-950 block">Lipa na M-Pesa STK Push Prompt</span>
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
-                        PAYBILL {(settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379') ? settings.mpesaPaybillNumber : '522522'}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-emerald-950 block">Lipa na M-Pesa STK Push Prompt</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
+                          PAYBILL {(settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379') ? settings.mpesaPaybillNumber : '522522'}
+                        </span>
+                        <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold uppercase border ${
+                          settings?.mpesaEnvironment === 'production'
+                            ? 'bg-emerald-600 text-white border-emerald-700'
+                            : 'bg-amber-100 text-amber-800 border-amber-300'
+                        }`}>
+                          {settings?.mpesaEnvironment === 'production' ? 'Production (Live)' : 'Sandbox (Testing)'}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-emerald-700 block">
+                        Dispatches prompt of {formatCurrency(totalInc, currencySymbol)} · Acc No: <strong className="font-mono">{settings?.mpesaAccountNumber || '1358024235'}</strong> · {settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
                       </span>
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold uppercase border ${
-                        settings?.mpesaEnvironment === 'production'
-                          ? 'bg-emerald-600 text-white border-emerald-700'
-                          : 'bg-amber-100 text-amber-800 border-amber-300'
-                      }`}>
-                        {settings?.mpesaEnvironment === 'production' ? 'Production (Live)' : 'Sandbox (Testing)'}
-                      </span>
-                      {onOpenMpesaSettings && (
-                        <button
-                          type="button"
-                          onClick={onOpenMpesaSettings}
-                          className="text-[10px] px-2 py-0.5 rounded bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold cursor-pointer transition-colors"
-                        >
-                          {settings?.mpesaEnvironment === 'production' ? 'Daraja Settings' : 'Switch to Production (Live)'}
-                        </button>
-                      )}
                     </div>
-                    <span className="text-[11px] text-emerald-700 block">
-                      Dispatches prompt of {formatCurrency(totalInc, currencySymbol)} · Acc No: <strong className="font-mono">{settings?.mpesaAccountNumber || '1358024235'}</strong> · {settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
-                    </span>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {onOpenMpesaSettings && (
+                      <button
+                        type="button"
+                        onClick={onOpenMpesaSettings}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors ${
+                          settings?.mpesaEnvironment === 'production'
+                            ? 'bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-400'
+                            : 'bg-slate-900 hover:bg-slate-800 text-white'
+                        }`}
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{settings?.mpesaEnvironment === 'production' ? 'Production (Live) Settings' : 'Switch to Production (Live)'}</span>
+                      </button>
+                    )}
                   <button
                     type="button"
                     disabled={isStkPushing || totalInc <= 0}
