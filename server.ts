@@ -51,6 +51,7 @@ interface MpesaTransactionState {
   phoneNumber: string;
   amount: number;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
+  isSimulated?: boolean;
   resultCode?: number | string;
   resultDesc?: string;
   mpesaReceiptNumber?: string;
@@ -102,8 +103,8 @@ let runtimeCredentials = {
   environment: (process.env.MPESA_ENVIRONMENT || 'sandbox').toLowerCase() as 'sandbox' | 'production',
 };
 
-// Cached OAuth token
-let cachedToken: { token: string; expiresAt: number } | null = null;
+// Cached OAuth token keyed by environment + consumerKey so sandbox & production tokens never collide
+let cachedToken: { cacheKey: string; token: string; expiresAt: number } | null = null;
 let activeAdminAccessCode = '1234';
 
 // Admin authentication middleware for sensitive configuration & simulation endpoints
@@ -213,7 +214,8 @@ function generateStkPassword(shortcode: string, passkey: string, timestamp: stri
 // Helper: Fetch OAuth token from Daraja
 async function getDarajaToken(consumerKey: string, consumerSecret: string, isProduction = false): Promise<string> {
   const now = Date.now();
-  if (cachedToken && cachedToken.expiresAt > now + 60000) {
+  const cacheKey = `${isProduction ? 'production' : 'sandbox'}:${consumerKey}`;
+  if (cachedToken && cachedToken.cacheKey === cacheKey && cachedToken.expiresAt > now + 60000) {
     return cachedToken.token;
   }
 
@@ -231,12 +233,13 @@ async function getDarajaToken(consumerKey: string, consumerSecret: string, isPro
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Daraja OAuth authentication failed (${response.status}): ${errorText}`);
+    throw new Error(`Daraja ${isProduction ? 'Production' : 'Sandbox'} OAuth authentication failed (${response.status}): ${errorText || 'Invalid Consumer Key or Secret for this environment.'}`);
   }
 
   const data = (await response.json()) as { access_token: string; expires_in: string };
   const expiresInMs = parseInt(data.expires_in, 10) * 1000;
   cachedToken = {
+    cacheKey,
     token: data.access_token,
     expiresAt: now + expiresInMs,
   };
@@ -348,7 +351,7 @@ app.post('/api/mpesa/test-credentials', verifyAdminAuth, async (req: Request, re
     if (!key || !secret) {
       return res.status(400).json({
         success: false,
-        error: 'Missing Consumer Key or Consumer Secret. Please input them from your Daraja Sandbox app.',
+        error: 'Missing Consumer Key or Consumer Secret. Please input them from your Daraja app.',
       });
     }
 
@@ -373,8 +376,8 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
   try {
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
 
-    // Anti-Spam / DoS Rate Limiter: Max 10 requests per 5 minutes per IP
-    const ipCheck = checkRateLimit(ipRateLimits, clientIp, 10, 5 * 60 * 1000);
+    // Anti-Spam / DoS Rate Limiter: Max 25 requests per 5 minutes per IP
+    const ipCheck = checkRateLimit(ipRateLimits, clientIp, 25, 5 * 60 * 1000);
     if (!ipCheck.allowed) {
       return res.status(429).json({
         success: false,
@@ -382,7 +385,7 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
       });
     }
 
-    const { phoneNumber, amount, accountReference, transactionDesc } = req.body;
+    const { phoneNumber, amount, accountReference, transactionDesc, useSandboxTestShortcode } = req.body;
 
     if (!phoneNumber) {
       return res.status(400).json({ success: false, error: 'Phone number is required.' });
@@ -396,8 +399,8 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
       });
     }
 
-    // Harassment Prevention: Max 3 STK Push prompts per 5 minutes per Phone Number
-    const phoneCheck = checkRateLimit(phoneRateLimits, formattedPhone, 3, 5 * 60 * 1000);
+    // Harassment Prevention: Max 10 STK Push prompts per 5 minutes per Phone Number
+    const phoneCheck = checkRateLimit(phoneRateLimits, formattedPhone, 10, 5 * 60 * 1000);
     if (!phoneCheck.allowed) {
       return res.status(429).json({
         success: false,
@@ -427,10 +430,15 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
 
     const isProd = runtimeCredentials.environment === 'production';
     const baseUrl = isProd ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
-    const shortcode = (runtimeCredentials.shortcode && runtimeCredentials.shortcode !== '174379')
+    const configuredShortcode = (runtimeCredentials.shortcode && runtimeCredentials.shortcode !== '174379')
       ? runtimeCredentials.shortcode
       : '522522';
-    const passkey = runtimeCredentials.passkey || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
+    // Only allow Safaricom's Sandbox test shortcode (174379) when explicitly testing handset delivery in Sandbox mode
+    const useTestShortcode = !isProd && Boolean(useSandboxTestShortcode);
+    const shortcode = useTestShortcode ? '174379' : configuredShortcode;
+    const passkey = useTestShortcode
+      ? 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
+      : (runtimeCredentials.passkey || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919');
     const timestamp = getMpesaTimestamp();
     const password = generateStkPassword(shortcode, passkey, timestamp);
 
@@ -450,27 +458,35 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
     } catch (authErr: any) {
       // If no custom credentials or Daraja auth rejected in sandbox, provide simulation
       console.warn('Daraja Token generation skipped or failed:', authErr.message);
+      if (isProd) {
+        return res.status(400).json({
+          success: false,
+          error: authErr.message || 'Daraja Production OAuth failed. Check your Production Consumer Key and Secret in Admin Settings.',
+        });
+      }
       const simulatedCheckoutId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 90000 + 10000)}`;
       transactionsCache.set(simulatedCheckoutId, {
         checkoutRequestId: simulatedCheckoutId,
         phoneNumber: formattedPhone,
         amount: parsedAmount,
         status: 'PENDING',
+        isSimulated: true,
         createdAt: Date.now(),
       });
 
       return res.json({
         success: true,
         isSimulated: true,
-        shortcode,
+        shortcode: configuredShortcode,
         accountNumber: safeAccountRef,
         accountName: defaultAccName,
+        darajaError: authErr.message,
         MerchantRequestID: `MR_${Date.now()}`,
         CheckoutRequestID: simulatedCheckoutId,
         ResponseCode: '0',
-        ResponseDescription: `STK push prompt triggered for Paybill ${shortcode} (${isProd ? 'Live' : 'Sandbox Mode'})`,
-        CustomerMessage: `Success. Prompt for Paybill ${shortcode} (Acc: ${safeAccountRef} · ${defaultAccName}) dispatched to ${formattedPhone}.`,
-        note: `Paybill ${shortcode} · Acc No: ${safeAccountRef} · ${defaultAccName}`,
+        ResponseDescription: `STK push simulated for Paybill ${configuredShortcode} (Sandbox Mode)`,
+        CustomerMessage: `Sandbox simulation active for Paybill ${configuredShortcode} (Acc: ${safeAccountRef} · ${defaultAccName}).`,
+        note: `Paybill ${configuredShortcode} · Acc No: ${safeAccountRef} · ${defaultAccName}`,
       });
     }
 
@@ -503,28 +519,31 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
     if (!stkResponse.ok || stkResult.ResponseCode !== '0') {
       console.warn('Daraja STK push returned non-zero code:', stkResult);
       // Safaricom Sandbox does not hold live production shortcodes like KCB Paybill 522522
-      if (!isProd) {
+      if (!isProd && !useTestShortcode) {
         const simulatedCheckoutId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 90000 + 10000)}`;
         transactionsCache.set(simulatedCheckoutId, {
           checkoutRequestId: simulatedCheckoutId,
           phoneNumber: formattedPhone,
           amount: parsedAmount,
           status: 'PENDING',
+          isSimulated: true,
           createdAt: Date.now(),
         });
 
+        const darajaReason = stkResult.errorMessage || stkResult.ResponseDescription || 'Merchant does not exist in Sandbox';
         return res.json({
           success: true,
           isSimulated: true,
-          shortcode,
+          shortcode: configuredShortcode,
           accountNumber: safeAccountRef,
           accountName: defaultAccName,
+          darajaError: `${darajaReason} — Safaricom Daraja Sandbox does not push live Paybill ${configuredShortcode} to phones; Production Daraja credentials + Passkey are required for live handsets.`,
           MerchantRequestID: `MR_${Date.now()}`,
           CheckoutRequestID: simulatedCheckoutId,
           ResponseCode: '0',
-          ResponseDescription: `STK push simulated for Paybill ${shortcode} (Sandbox mode)`,
-          CustomerMessage: `Success. Prompt for Paybill ${shortcode} (Acc: ${safeAccountRef} · ${defaultAccName}) dispatched to ${formattedPhone}.`,
-          note: `Paybill ${shortcode} · Acc No: ${safeAccountRef} · ${defaultAccName} (Sandbox simulation active; switch Environment to Production with live Daraja keys for live handsets).`,
+          ResponseDescription: `STK push simulated for Paybill ${configuredShortcode} (Sandbox mode)`,
+          CustomerMessage: `Sandbox simulation for Paybill ${configuredShortcode} (Acc: ${safeAccountRef} · ${defaultAccName}).`,
+          note: `Paybill ${configuredShortcode} · Acc No: ${safeAccountRef} · ${defaultAccName} (Sandbox mode).`,
         });
       }
 
@@ -543,11 +562,13 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
       phoneNumber: formattedPhone,
       amount: parsedAmount,
       status: 'PENDING',
+      isSimulated: false,
       createdAt: Date.now(),
     });
 
     return res.json({
       success: true,
+      isSimulated: false,
       shortcode,
       accountNumber: safeAccountRef,
       accountName: defaultAccName,
@@ -588,10 +609,22 @@ app.post('/api/mpesa/query', async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Query Daraja STK Query API if credentials available
+    // 2. Skip live Daraja query for simulated sandbox requests
+    if (cached?.isSimulated) {
+      return res.json({
+        success: true,
+        status: cached.status,
+        message: 'Sandbox simulation active — awaiting manual M-Pesa code or sandbox confirmation.',
+        mpesaReceiptNumber: cached.mpesaReceiptNumber,
+      });
+    }
+
+    // 3. Query Daraja STK Query API if credentials available
     const isProd = runtimeCredentials.environment === 'production';
     const baseUrl = isProd ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
-    const shortcode = runtimeCredentials.shortcode || '522522';
+    const shortcode = (runtimeCredentials.shortcode && runtimeCredentials.shortcode !== '174379')
+      ? runtimeCredentials.shortcode
+      : '522522';
     const passkey = runtimeCredentials.passkey || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
     const timestamp = getMpesaTimestamp();
     const password = generateStkPassword(shortcode, passkey, timestamp);

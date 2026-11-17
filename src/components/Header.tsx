@@ -23,6 +23,8 @@ interface HeaderProps {
   onOpenNewSale: () => void;
   onOpenNewPart: () => void;
   onOpenSettings: () => void;
+  onOpenMpesaSettings?: () => void;
+  mpesaEnvironment?: 'sandbox' | 'production';
   onExitToStore?: () => void;
   lowStockCount: number;
   currentAdmin?: AdminAccount | null;
@@ -34,6 +36,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenNewSale,
   onOpenNewPart,
   onOpenSettings,
+  onOpenMpesaSettings,
+  mpesaEnvironment = 'sandbox',
   onExitToStore,
   lowStockCount,
   currentAdmin,
@@ -187,9 +191,25 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {onOpenMpesaSettings && (
+              <button
+                type="button"
+                onClick={onOpenMpesaSettings}
+                title="Configure M-Pesa Daraja (Sandbox / Production Live)"
+                className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-bold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  mpesaEnvironment === 'production'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                    : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${mpesaEnvironment === 'production' ? 'bg-emerald-600' : 'bg-amber-500'}`} />
+                <span>M-Pesa: {mpesaEnvironment === 'production' ? 'Live' : 'Sandbox'}</span>
+              </button>
+            )}
+
             <button
               onClick={onOpenSettings}
-              title="Store Settings & Tax Rates"
+              title="Store Settings & M-Pesa Daraja Configuration"
               aria-label="Settings"
               className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
             >

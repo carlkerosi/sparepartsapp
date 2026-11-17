@@ -141,6 +141,7 @@ export default function App() {
 
   // Settings modal controls
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<'mpesa' | 'business' | 'admins'>('mpesa');
 
   // 1. Firebase Live Synchronization & Test Probe
   useEffect(() => {
@@ -1048,7 +1049,15 @@ export default function App() {
               setPrefilledSupplierIdForPart(undefined);
               setIsPartModalOpen(true);
             }}
-            onOpenSettings={() => setIsSettingsModalOpen(true)}
+            onOpenSettings={() => {
+              setSettingsInitialSection('mpesa');
+              setIsSettingsModalOpen(true);
+            }}
+            onOpenMpesaSettings={() => {
+              setSettingsInitialSection('mpesa');
+              setIsSettingsModalOpen(true);
+            }}
+            mpesaEnvironment={settings.mpesaEnvironment}
             onExitToStore={() => setViewMode('storefront')}
             lowStockCount={inventoryMetrics.lowStockCount}
             currentAdmin={currentAdmin}
@@ -1307,6 +1316,10 @@ export default function App() {
         initialPart={saleInitialPart}
         settings={settings}
         onCompleteSale={handleCompleteSale}
+        onOpenMpesaSettings={() => {
+          setSettingsInitialSection('mpesa');
+          setIsSettingsModalOpen(true);
+        }}
       />
 
       {/* Admin Add / Edit Part Modal (with Image upload and Presets) */}
@@ -1363,6 +1376,7 @@ export default function App() {
         onSaveAdminAccount={handleSaveAdminAccount}
         onDeleteAdminAccount={handleDeleteAdminAccount}
         onSignInGoogle={handleSignInGoogleAdmin}
+        initialSection={settingsInitialSection}
       />
 
       {/* Toast Notification */}

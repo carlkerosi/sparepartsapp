@@ -22,6 +22,7 @@ export interface StkPushResponse {
   shortcode?: string;
   accountNumber?: string;
   accountName?: string;
+  darajaError?: string;
   MerchantRequestID?: string;
   CheckoutRequestID?: string;
   ResponseCode?: string;
@@ -83,6 +84,7 @@ export async function initiateStkPush(params: {
   amount: number;
   accountReference?: string;
   transactionDesc?: string;
+  useSandboxTestShortcode?: boolean;
 }): Promise<StkPushResponse> {
   const res = await fetch('/api/mpesa/stkpush', {
     method: 'POST',

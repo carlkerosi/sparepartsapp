@@ -42,6 +42,7 @@ interface SettingsModalProps {
   onSaveAdminAccount?: (account: AdminAccount) => void;
   onDeleteAdminAccount?: (id: string) => void;
   onSignInGoogle?: () => Promise<void>;
+  initialSection?: 'mpesa' | 'business' | 'admins';
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -57,7 +58,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveAdminAccount,
   onDeleteAdminAccount,
   onSignInGoogle,
+  initialSection = 'mpesa',
 }) => {
+  const [activeSection, setActiveSection] = useState<'mpesa' | 'business' | 'admins'>(initialSection);
   const [form, setForm] = useState<InventorySettings>({ ...settings });
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
@@ -82,22 +85,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [savingDarajaToFirebase, setSavingDarajaToFirebase] = useState(false);
   const [darajaFirebaseSavedMsg, setDarajaFirebaseSavedMsg] = useState<string | null>(null);
 
-  // Query server for active Daraja credentials on open
+  // Query server for active Daraja credentials on open and sync form with latest settings
   useEffect(() => {
-    if (isOpen) {
-      getMpesaStatus()
-        .then((res) => {
-          setServerMpesaStatus(res);
-          setForm((prev) => ({
-            ...prev,
-            mpesaShortcode: (res.shortcode && res.shortcode !== '174379') ? res.shortcode : '522522',
-            mpesaAccountNumber: res.accountNumber || prev.mpesaAccountNumber || '1358024235',
-            mpesaAccountName: res.accountName || prev.mpesaAccountName || 'PANZER AUTOPARTS LTD',
-          }));
-        })
-        .catch(console.error);
-    }
-  }, [isOpen]);
+    if (!isOpen) return;
+    setActiveSection(initialSection);
+    setForm({ ...settings });
+    getMpesaStatus()
+      .then((res) => {
+        setServerMpesaStatus(res);
+        setForm((prev) => ({
+          ...prev,
+          mpesaShortcode: (res.shortcode && res.shortcode !== '174379') ? res.shortcode : '522522',
+          mpesaAccountNumber: res.accountNumber || prev.mpesaAccountNumber || '1358024235',
+          mpesaAccountName: res.accountName || prev.mpesaAccountName || 'PANZER AUTOPARTS LTD',
+          mpesaEnvironment: res.environment || prev.mpesaEnvironment || 'sandbox',
+        }));
+      })
+      .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialSection]);
 
   if (!isOpen) return null;
 
@@ -115,7 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onSaveSettings(normalizedForm);
 
     // If new secrets or M-Pesa config were entered, securely persist them to Firebase Firestore via backend
-    if (normalizedForm.mpesaConsumerKey?.trim() || normalizedForm.mpesaConsumerSecret?.trim() || normalizedForm.mpesaPasskey?.trim() || normalizedForm.mpesaShortcode || normalizedForm.mpesaAccountNumber) {
+    if (normalizedForm.mpesaConsumerKey?.trim() || normalizedForm.mpesaConsumerSecret?.trim() || normalizedForm.mpesaPasskey?.trim() || normalizedForm.mpesaShortcode || normalizedForm.mpesaAccountNumber || normalizedForm.mpesaEnvironment) {
       updateDarajaConfig({
         consumerKey: normalizedForm.mpesaConsumerKey?.trim(),
         consumerSecret: normalizedForm.mpesaConsumerSecret?.trim(),
@@ -135,23 +141,35 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleSaveDarajaToFirebase = async () => {
-    if (!form.mpesaConsumerKey?.trim() && !form.mpesaConsumerSecret?.trim() && !form.mpesaPasskey?.trim()) {
-      setDarajaFirebaseSavedMsg('Please enter Consumer Key, Secret or Passkey first.');
-      return;
-    }
     setSavingDarajaToFirebase(true);
     setDarajaFirebaseSavedMsg(null);
     try {
+      const normalizedShortcode = form.mpesaShortcode && form.mpesaShortcode !== '174379' ? form.mpesaShortcode.trim() : '522522';
+      const normalizedAccNumber = form.mpesaAccountNumber?.trim() || '1358024235';
+      const normalizedAccName = form.mpesaAccountName?.trim() || 'PANZER AUTOPARTS LTD';
+      const normalizedEnv = form.mpesaEnvironment || 'sandbox';
+
       const res = await updateDarajaConfig({
-        consumerKey: form.mpesaConsumerKey?.trim(),
-        consumerSecret: form.mpesaConsumerSecret?.trim(),
-        shortcode: form.mpesaShortcode || form.mpesaPaybillNumber || '522522',
-        accountNumber: form.mpesaAccountNumber || '1358024235',
-        accountName: form.mpesaAccountName || 'PANZER AUTOPARTS LTD',
-        passkey: form.mpesaPasskey?.trim(),
-        environment: form.mpesaEnvironment || 'sandbox',
+        consumerKey: form.mpesaConsumerKey?.trim() || undefined,
+        consumerSecret: form.mpesaConsumerSecret?.trim() || undefined,
+        shortcode: normalizedShortcode,
+        accountNumber: normalizedAccNumber,
+        accountName: normalizedAccName,
+        passkey: form.mpesaPasskey?.trim() || undefined,
+        environment: normalizedEnv,
       });
-      setDarajaFirebaseSavedMsg(res.message || 'Credentials securely stored in Firebase Firestore!');
+
+      onSaveSettings({
+        ...form,
+        mpesaShortcode: normalizedShortcode,
+        mpesaPaybillNumber: normalizedShortcode,
+        mpesaTillNumber: normalizedShortcode,
+        mpesaAccountNumber: normalizedAccNumber,
+        mpesaAccountName: normalizedAccName,
+        mpesaEnvironment: normalizedEnv,
+      });
+
+      setDarajaFirebaseSavedMsg(res.message || 'M-Pesa configuration securely stored in Firebase Firestore!');
       const freshStatus = await getMpesaStatus();
       setServerMpesaStatus(freshStatus);
       setTimeout(() => setDarajaFirebaseSavedMsg(null), 4000);
@@ -169,7 +187,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     if (!key && !secret && !serverMpesaStatus?.configured) {
       setDarajaTestStatus({
         success: false,
-        message: 'Please enter both Consumer Key and Consumer Secret from your Daraja Sandbox app first.',
+        message: 'Please enter both Consumer Key and Consumer Secret from your Daraja app first.',
       });
       return;
     }
@@ -233,8 +251,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in duration-150 max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in duration-150 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
           <div className="flex items-center gap-2">
@@ -242,10 +260,58 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <h2 className="text-sm font-bold text-slate-900">Store & Administrative Configuration</h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-700 p-1 rounded cursor-pointer"
           >
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Section Tabs */}
+        <div className="px-6 pt-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-2 shrink-0 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setActiveSection('mpesa')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+              activeSection === 'mpesa'
+                ? 'border-emerald-600 text-emerald-800 bg-white rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>M-Pesa Daraja</span>
+            <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono uppercase ${
+              form.mpesaEnvironment === 'production'
+                ? 'bg-emerald-600 text-white'
+                : 'bg-amber-100 text-amber-800'
+            }`}>
+              {form.mpesaEnvironment === 'production' ? 'Live' : 'Sandbox'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('business')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+              activeSection === 'business'
+                ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Business, Tax & Paybill
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('admins')}
+            className={`px-3 py-2 text-xs font-bold border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
+              activeSection === 'admins'
+                ? 'border-slate-900 text-slate-900 bg-white rounded-t-lg'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            Admins & Database
           </button>
         </div>
 
@@ -267,6 +333,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* ============================================================= */}
           {/* 1. ADMIN ACCOUNTS & ROLE-BASED ACCESS CONTROL                 */}
           {/* ============================================================= */}
+          {activeSection === 'admins' && (
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -427,10 +494,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
           </div>
+          )}
 
           {/* ============================================================= */}
           {/* 2. CURRENCY & EXCHANGE RATES                                  */}
           {/* ============================================================= */}
+          {activeSection === 'business' && (
+          <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
@@ -614,25 +684,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               />
             </div>
           </div>
+          </div>
+          )}
 
           {/* ============================================================= */}
-          {/* 3B. SAFARICOM M-PESA DARAJA SANDBOX INTEGRATION               */}
+          {/* 3B. SAFARICOM M-PESA DARAJA API CONFIGURATION                 */}
           {/* ============================================================= */}
+          {activeSection === 'mpesa' && (
           <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-3.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-emerald-600 text-white flex items-center justify-center">
                   <Smartphone className="w-3.5 h-3.5" />
                 </div>
                 <div>
                   <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>M-Pesa Daraja Sandbox Configuration</span>
-                    <span className="text-[9px] px-1.5 py-0.2 bg-emerald-100 text-emerald-800 font-mono rounded border border-emerald-300">
-                      STK Push
+                    <span>M-Pesa Daraja API Configuration</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 font-mono rounded border font-bold uppercase ${
+                      form.mpesaEnvironment === 'production'
+                        ? 'bg-emerald-600 text-white border-emerald-700'
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                    }`}>
+                      {form.mpesaEnvironment === 'production' ? 'Production Live' : 'Sandbox Mode'}
                     </span>
                   </h3>
                   <p className="text-[10px] text-slate-500">
-                    Connect your app from developer.safaricom.co.ke for real customer STK push prompts
+                    Configure Paybill 522522, Acc 1358024235, and Daraja Gateway Environment
                   </p>
                 </div>
               </div>
@@ -648,6 +725,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <span>{testingDaraja ? 'Testing...' : 'Test Daraja API'}</span>
                 </button>
               </div>
+            </div>
+
+            {/* Prominent Gateway Environment Switcher */}
+            <div className="p-3 bg-white border border-emerald-200 rounded-lg space-y-2">
+              <label className="block text-[11px] font-bold text-slate-800">
+                Daraja Gateway Environment
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, mpesaEnvironment: 'sandbox' })}
+                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                    (form.mpesaEnvironment || 'sandbox') === 'sandbox'
+                      ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500'
+                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="text-xs font-bold text-slate-900">Sandbox (Testing)</div>
+                  <div className="text-[10px] text-slate-600 mt-0.5">Simulated STK for Paybill 522522</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, mpesaEnvironment: 'production' })}
+                  className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                    form.mpesaEnvironment === 'production'
+                      ? 'border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600'
+                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="text-xs font-bold text-emerald-950">Production (Live)</div>
+                  <div className="text-[10px] text-emerald-800 mt-0.5">Live phone STK for Paybill 522522</div>
+                </button>
+              </div>
+              <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded p-2 leading-relaxed">
+                <strong>Important for Paybill 522522:</strong> Safaricom&apos;s <strong>Sandbox</strong> rejects live Paybill <code>522522</code> (<code>Merchant does not exist</code>). Select <strong>Production (Live)</strong>, paste your Production Consumer Key, Consumer Secret, and Passkey below, then click <strong>Save M-Pesa Config to Firebase</strong>.
+              </p>
             </div>
 
             {/* Firebase Security & Storage Banner */}
@@ -798,43 +911,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </label>
                 <input
                   type="password"
-                  value={form.mpesaPasskey || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'}
+                  value={form.mpesaPasskey || ''}
                   onChange={(e) => setForm({ ...form, mpesaPasskey: e.target.value.trim() })}
-                  placeholder="bfb279f9aa9bdbcf..."
+                  placeholder={serverMpesaStatus?.hasPasskey ? '•••••••••••••••• (Saved in Firestore)' : 'Paste Daraja Online Passkey'}
                   className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
-                <span className="text-[10px] text-slate-400 mt-0.5 block">Standard Safaricom Sandbox passkey prefilled</span>
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  {form.mpesaEnvironment === 'production'
+                    ? 'Enter your Production Lipa na M-Pesa Passkey for Paybill 522522'
+                    : 'Leave blank to keep saved passkey, or paste a new passkey'}
+                </span>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Daraja Gateway Environment
-              </label>
-              <select
-                value={form.mpesaEnvironment || 'sandbox'}
-                onChange={(e) => setForm({ ...form, mpesaEnvironment: e.target.value as 'sandbox' | 'production' })}
-                className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-emerald-600 cursor-pointer"
-              >
-                <option value="sandbox">Sandbox (Testing & Simulated STK for Paybill 522522)</option>
-                <option value="production">Production (Live Handset Prompts for Paybill 522522 / Acc 1358024235)</option>
-              </select>
             </div>
 
             {/* Save directly to Firebase button */}
-            {(form.mpesaConsumerKey || form.mpesaConsumerSecret || form.mpesaPasskey) && (
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveDarajaToFirebase}
-                  disabled={savingDarajaToFirebase}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 shadow-2xs"
-                >
-                  <Lock className={`w-3.5 h-3.5 ${savingDarajaToFirebase ? 'animate-spin' : ''}`} />
-                  <span>{savingDarajaToFirebase ? 'Saving to Firebase...' : 'Save Credentials to Firebase'}</span>
-                </button>
-              </div>
-            )}
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveDarajaToFirebase}
+                disabled={savingDarajaToFirebase}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:opacity-50 shadow-2xs"
+              >
+                <Lock className={`w-3.5 h-3.5 ${savingDarajaToFirebase ? 'animate-spin' : ''}`} />
+                <span>{savingDarajaToFirebase ? 'Saving to Firebase...' : 'Save M-Pesa Config to Firebase'}</span>
+              </button>
+            </div>
 
             {/* Live Callback Webhook URL */}
             <div className="pt-2 border-t border-emerald-200/80">
@@ -879,7 +980,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </p>
             </div>
           </div>
+          )}
 
+          {activeSection === 'admins' && (
+          <div className="space-y-4">
           <div>
             <label className="block font-semibold text-slate-700 mb-1">
               Admin Access Code (Double-click logo shortcut)
@@ -1016,6 +1120,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             )}
           </div>
+          </div>
+          )}
 
           <div className="pt-3 border-t border-slate-100 flex justify-end gap-2 shrink-0">
             <button

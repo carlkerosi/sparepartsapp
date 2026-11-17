@@ -72,7 +72,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [stkCountdown, setStkCountdown] = useState(30);
   const [stkStatus, setStkStatus] = useState<'idle' | 'dispatching' | 'prompting' | 'verifying' | 'approved' | 'cancelled' | 'failed'>('idle');
   const [generatedMpesaCode, setGeneratedMpesaCode] = useState('');
+  const [manualMpesaCode, setManualMpesaCode] = useState('');
   const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(null);
+  const [isStkSimulated, setIsStkSimulated] = useState(false);
+  const [darajaNotice, setDarajaNotice] = useState<string | null>(null);
   const [darajaCustomerMessage, setDarajaCustomerMessage] = useState<string>('');
   const [darajaStatusNote, setDarajaStatusNote] = useState<string>('');
   
@@ -142,6 +145,51 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     return `S${randLetters}${randDigits}`;
   };
 
+  const triggerStkRequest = async (useSandboxTestShortcode = false) => {
+    setIsStkPromptActive(true);
+    setStkCountdown(30);
+    setStkStatus('dispatching');
+    setIsStkSimulated(false);
+    setDarajaNotice(null);
+    setErrorMessage(null);
+    setDarajaStatusNote(
+      useSandboxTestShortcode
+        ? 'Sending Sandbox handset test STK Push (Shortcode 174379)...'
+        : 'Sending STK Push prompt to Safaricom Daraja Gateway...'
+    );
+
+    try {
+      const stkResult = await initiateStkPush({
+        phoneNumber: customerPhone.trim(),
+        amount: totalInc,
+        accountReference: settings?.mpesaAccountNumber || '1358024235',
+        transactionDesc: 'PANZER PARTS',
+        useSandboxTestShortcode,
+      });
+
+      if (stkResult.CheckoutRequestID) {
+        setCheckoutRequestId(stkResult.CheckoutRequestID);
+        setIsStkSimulated(Boolean(stkResult.isSimulated));
+        setDarajaNotice(stkResult.darajaError || null);
+        setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push dispatched to ${customerPhone}.`);
+        setDarajaStatusNote(
+          stkResult.isSimulated
+            ? `Sandbox Simulation: Safaricom Sandbox cannot push live KCB Paybill ${stkResult.shortcode || '522522'} to handsets. Pay manually via Paybill ${stkResult.shortcode || '522522'} (Acc ${stkResult.accountNumber || '1358024235'}) and enter your M-Pesa code below, or use a Sandbox test option.`
+            : `Live STK Push dispatched to ${customerPhone} (${useSandboxTestShortcode ? 'Sandbox 174379' : `Paybill ${stkResult.shortcode || '522522'} · Acc ${stkResult.accountNumber || '1358024235'}`}). Check your phone to enter your M-Pesa PIN.`
+        );
+        setStkStatus('prompting');
+      } else {
+        throw new Error(stkResult.error || 'Failed to dispatch Lipa na M-Pesa prompt.');
+      }
+    } catch (err: any) {
+      console.error('STK push error:', err);
+      const msg = err.message || 'Unable to trigger M-Pesa prompt. Please verify phone number format (07XXXXXXXX or 2547XXXXXXXX).';
+      setErrorMessage(msg);
+      setDarajaStatusNote(msg);
+      setStkStatus('failed');
+    }
+  };
+
   const handleStartPaymentFlow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!customerName.trim() || !customerPhone.trim() || !deliveryAddress.trim()) {
@@ -151,40 +199,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setErrorMessage(null);
 
     if (paymentMethod === 'Mobile Money') {
-      setIsStkPromptActive(true);
-      setStkCountdown(30);
-      setStkStatus('dispatching');
-      setDarajaStatusNote('Sending STK Push prompt to Safaricom Daraja Gateway...');
-
-      try {
-        const stkResult = await initiateStkPush({
-          phoneNumber: customerPhone.trim(),
-          amount: totalInc,
-          accountReference: settings?.mpesaAccountNumber || '1358024235',
-          transactionDesc: 'PANZER PARTS',
-        });
-
-        if (stkResult.CheckoutRequestID) {
-          setCheckoutRequestId(stkResult.CheckoutRequestID);
-          setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push dispatched to ${customerPhone}.`);
-          setDarajaStatusNote(stkResult.isSimulated 
-            ? `Daraja Sandbox prompt active for Paybill ${stkResult.shortcode || '522522'} · Acc No ${stkResult.accountNumber || '1358024235'}. Enter PIN or click confirm below.` 
-            : `Daraja STK push dispatched (Paybill ${stkResult.shortcode || '522522'} · Acc ${stkResult.accountNumber || '1358024235'}). Check handset screen to enter your M-Pesa PIN.`);
-          setStkStatus('prompting');
-        } else {
-          throw new Error(stkResult.error || 'Failed to dispatch Lipa na M-Pesa prompt.');
-        }
-      } catch (err: any) {
-        console.error('STK push error:', err);
-        const msg = err.message || 'Unable to trigger M-Pesa prompt. Please verify phone number format (07XXXXXXXX or 2547XXXXXXXX).';
-        setErrorMessage(msg);
-        setDarajaStatusNote(msg);
-        setStkStatus('failed');
-      }
+      await triggerStkRequest(false);
     } else {
       // Open explicit payment confirmation dialog for Cash / Bank Transfer
       setIsConfirmingOfflinePayment(true);
     }
+  };
+
+  const handleManualMpesaCodeConfirm = async () => {
+    const cleaned = manualMpesaCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cleaned.length < 8) {
+      setErrorMessage('Please enter the valid 10-character M-Pesa confirmation code from your SMS (e.g. UAK84920XY).');
+      return;
+    }
+    setErrorMessage(null);
+    setGeneratedMpesaCode(cleaned);
+    setStkStatus('approved');
+    setTimeout(async () => {
+      await processFinalOrder(cleaned);
+    }, 600);
   };
 
   const handleSimulatePinAuthorize = async () => {
@@ -215,33 +248,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const handleRetryStkPush = async () => {
-    setIsStkPromptActive(true);
-    setStkCountdown(30);
-    setStkStatus('dispatching');
-    setDarajaStatusNote('Resending STK Push prompt to handset...');
-    try {
-      const stkResult = await initiateStkPush({
-        phoneNumber: customerPhone.trim(),
-        amount: totalInc,
-        accountReference: settings?.mpesaAccountNumber || '1358024235',
-        transactionDesc: 'PANZER PARTS',
-      });
-      if (stkResult.CheckoutRequestID) {
-        setCheckoutRequestId(stkResult.CheckoutRequestID);
-        setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push sent to ${customerPhone}.`);
-        setDarajaStatusNote(stkResult.isSimulated
-          ? `Sandbox prompt resent for Paybill ${stkResult.shortcode || '522522'} · Acc No ${stkResult.accountNumber || '1358024235'}.`
-          : 'Prompt resent. Check handset screen to enter PIN.');
-        setStkStatus('prompting');
-      } else {
-        throw new Error(stkResult.error || 'Retry failed to dispatch Lipa na M-Pesa prompt.');
-      }
-    } catch (err: any) {
-      const msg = err.message || 'Retry failed.';
-      setErrorMessage(msg);
-      setDarajaStatusNote(msg);
-      setStkStatus('failed');
-    }
+    await triggerStkRequest(false);
   };
 
   const handleConfirmOfflinePayment = async () => {
@@ -282,6 +289,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsConfirmingOfflinePayment(false);
     setStkStatus('idle');
     setCheckoutRequestId(null);
+    setIsStkSimulated(false);
+    setDarajaNotice(null);
+    setManualMpesaCode('');
     setErrorMessage(null);
     onClose();
   };
@@ -379,24 +389,37 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             ) : (
               <div className="space-y-4">
-                {/* Simulated Handset Screen Preview */}
+                {/* Handset / Paybill Payment Screen */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 text-center relative overflow-hidden">
                   <div className="w-16 h-1 bg-slate-800 rounded-full mx-auto mb-3" />
                   
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-medium mb-3">
-                    <Clock className="w-3 h-3 animate-spin" />
+                  <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium mb-3 border ${
+                    isStkSimulated
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                      : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                  }`}>
+                    <Clock className={`w-3 h-3 ${isStkSimulated ? '' : 'animate-spin'}`} />
                     <span>
                       {stkStatus === 'dispatching' 
                         ? 'Dispatching prompt...' 
-                        : `Awaiting PIN on handset: ${stkCountdown}s remaining`}
+                        : isStkSimulated
+                          ? 'Sandbox Mode · Pay via Paybill 522522 below'
+                          : `Live STK Push Sent · ${stkCountdown}s remaining`}
                     </span>
                   </div>
 
-                  {/* Safaricom USSD Message Display */}
+                  {isStkSimulated && darajaNotice && (
+                    <div className="mb-3 p-2.5 rounded-lg bg-amber-950/60 border border-amber-700/50 text-left text-[11px] text-amber-200 leading-relaxed">
+                      <strong className="text-amber-300 block mb-0.5">Why no popup appeared on your phone:</strong>
+                      {darajaNotice}
+                    </div>
+                  )}
+
+                  {/* Safaricom Paybill & Account Display */}
                   <div className="text-xs text-slate-300 font-mono leading-relaxed bg-slate-950 p-4 rounded-lg border border-slate-800 text-left space-y-2">
                     <div className="flex justify-between items-center border-b border-slate-800/80 pb-1.5">
                       <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
-                        Safaricom M-Pesa STK
+                        Lipa na M-Pesa · KCB Paybill
                       </span>
                       {checkoutRequestId && (
                         <span className="text-[9px] text-slate-500 truncate max-w-[180px]" title={checkoutRequestId}>
@@ -405,17 +428,44 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       )}
                     </div>
                     <p className="text-emerald-400 font-bold text-sm">
-                      Do you want to pay {formatCurrency(totalInc, currencySymbol)}?
+                      Amount: {formatCurrency(totalInc, currencySymbol)}
                     </p>
                     <p className="text-slate-200">
-                      To: <strong className="text-white">{settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}</strong>
+                      Account Name: <strong className="text-white">{settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}</strong>
                     </p>
                     <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-400 pt-1">
                       <div>Paybill No: <span className="text-white font-mono font-bold">{(settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379') ? settings.mpesaPaybillNumber : '522522'}</span></div>
                       <div>Acc No: <span className="text-white font-mono font-bold">{settings?.mpesaAccountNumber || '1358024235'}</span></div>
                     </div>
                     <div className="text-[11px] text-slate-400 pt-0.5">
-                      Target Mobile: <span className="text-emerald-300 font-semibold font-mono">{customerPhone}</span>
+                      Customer Mobile: <span className="text-emerald-300 font-semibold font-mono">{customerPhone}</span>
+                    </div>
+                  </div>
+
+                  {/* Manual M-Pesa Paybill Code Entry */}
+                  <div className="mt-3 p-3 bg-slate-950/80 border border-slate-800 rounded-lg text-left space-y-2">
+                    <div className="text-[11px] text-slate-300 font-medium">
+                      Paid via <strong className="text-white">M-Pesa → Lipa na M-Pesa → Pay Bill (522522, Acc 1358024235)</strong>? Enter your M-Pesa SMS code:
+                    </div>
+                    {errorMessage && (
+                      <div className="text-[11px] text-rose-400 font-medium">{errorMessage}</div>
+                    )}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={manualMpesaCode}
+                        onChange={(e) => setManualMpesaCode(e.target.value.toUpperCase())}
+                        placeholder="M-Pesa Ref e.g. UAK84920XY"
+                        className="flex-1 px-3 py-2 text-xs font-mono font-bold bg-slate-900 border border-slate-700 text-white rounded-lg focus:outline-none focus:border-emerald-500 uppercase"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleManualMpesaCodeConfirm}
+                        disabled={isSubmitting || manualMpesaCode.trim().length < 8}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors"
+                      >
+                        Confirm M-Pesa Code
+                      </button>
                     </div>
                   </div>
 
@@ -426,32 +476,45 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
 
                   {/* Actions Bar */}
-                  <div className="mt-4 pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleSimulatePinAuthorize}
-                      disabled={stkStatus === 'verifying'}
-                      className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-95"
-                    >
-                      {stkStatus === 'verifying' ? (
-                        <>
-                          <RotateCw className="w-4 h-4 animate-spin" />
-                          <span>Verifying M-Pesa PIN...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="w-4 h-4 text-emerald-200" />
-                          <span>Enter PIN on Handset & Confirm</span>
-                        </>
-                      )}
-                    </button>
+                  <div className="mt-4 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-center gap-2">
+                    {settings?.mpesaEnvironment !== 'production' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleSimulatePinAuthorize}
+                          disabled={stkStatus === 'verifying'}
+                          className="px-4 py-2 bg-emerald-700 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          {stkStatus === 'verifying' ? (
+                            <>
+                              <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Confirming...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5 text-emerald-200" />
+                              <span>Simulate Sandbox Approval</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => triggerStkRequest(true)}
+                          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-800/60 rounded-lg text-xs font-medium cursor-pointer transition-colors"
+                          title="Tests real Daraja Sandbox STK popup on phone using Safaricom test shortcode 174379"
+                        >
+                          Test Handset Popup (Sandbox 174379)
+                        </button>
+                      </>
+                    )}
 
                     <button
                       type="button"
                       onClick={handleRetryStkPush}
-                      className="w-full sm:w-auto px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium cursor-pointer transition-colors"
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium cursor-pointer transition-colors"
                     >
-                      Resend STK Push
+                      Resend Paybill 522522 Prompt
                     </button>
                   </div>
                 </div>
