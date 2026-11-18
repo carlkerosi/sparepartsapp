@@ -80,6 +80,8 @@ service cloud.firestore {
         && data.paymentMethod in ['Cash', 'Credit Card', 'Bank Transfer', 'Store Credit', 'Mobile Money']
         && (!('id' in data) || (data.id is string && data.id.size() <= 128))
         && (!('timestamp' in data) || (data.timestamp is string && data.timestamp.size() <= 60))
+        && (!('customerId' in data) || (data.customerId is string && data.customerId.size() <= 128))
+        && (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 120))
         && (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 50))
         && (!('deliveryAddress' in data) || (data.deliveryAddress is string && data.deliveryAddress.size() <= 250))
         && (!('vehicleRef' in data) || (data.vehicleRef is string && data.vehicleRef.size() <= 100))
@@ -89,6 +91,8 @@ service cloud.firestore {
         && (!('totalGrossProfit' in data) || (data.totalGrossProfit is number))
         && (!('marginPercent' in data) || (data.marginPercent is number))
         && (!('mpesaReceiptNumber' in data) || (data.mpesaReceiptNumber is string && data.mpesaReceiptNumber.size() <= 60))
+        && (!('orderStatus' in data) || (data.orderStatus in ['CONFIRMED', 'PACKING', 'DISPATCHED', 'DELIVERED']))
+        && (!('statusUpdatedAt' in data) || (data.statusUpdatedAt is string && data.statusUpdatedAt.size() <= 60))
         && (!('salesPerson' in data) || (data.salesPerson is string && data.salesPerson.size() <= 80))
         && (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000))
         && (!('items' in data) || (data.items is list && data.items.size() <= 100));
@@ -149,6 +153,20 @@ service cloud.firestore {
         && (!('lastLogin' in data) || (data.lastLogin is string && data.lastLogin.size() <= 60));
     }
 
+    // 7. CustomerProfile Validation Helper (PII-isolated)
+    function isValidCustomerProfile(data, customerId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'phone', 'defaultDeliveryAddress', 'defaultVehicleRef', 'createdAt', 'updatedAt'])
+        && data.uid is string && data.uid == customerId && data.uid == request.auth.uid
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 120
+        && data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 50))
+        && (!('defaultDeliveryAddress' in data) || (data.defaultDeliveryAddress is string && data.defaultDeliveryAddress.size() <= 250))
+        && (!('defaultVehicleRef' in data) || (data.defaultVehicleRef is string && data.defaultVehicleRef.size() <= 100))
+        && (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() <= 60))
+        && (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 60));
+    }
+
 
     // ==========================================
     // COLLECTION ACCESS POLICIES
@@ -195,6 +213,17 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isValidId(adminId) && isValidAdmin(incoming());
       allow delete: if isValidId(adminId);
+    }
+
+    // Customer Profiles (Strictly owner-isolated PII)
+    match /customers/{customerId} {
+      allow get: if request.auth != null && request.auth.uid == customerId && isValidId(customerId);
+      allow list: if false;
+      allow create, update: if request.auth != null
+        && request.auth.uid == customerId
+        && isValidId(customerId)
+        && isValidCustomerProfile(incoming(), customerId);
+      allow delete: if request.auth != null && request.auth.uid == customerId && isValidId(customerId);
     }
 
     // Operational Connection Health Probe (Restricted to health check probe document)

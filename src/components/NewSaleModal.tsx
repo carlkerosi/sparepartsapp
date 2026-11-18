@@ -565,7 +565,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                 onChange={(e) => setPaymentMethod(e.target.value as any)}
                 className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 cursor-pointer font-medium"
               >
-                <option value="Mobile Money">Lipa na M-Pesa (STK Push Prompt)</option>
+                <option value="Mobile Money">Lipa na M-Pesa (Paybill 522522 · SIM Toolkit / STK)</option>
                 <option value="Cash">Cash (Counter Cash / On-Delivery)</option>
                 <option value="Bank Transfer">Bank Wire / RTGS / EFT</option>
                 <option value="Credit Card">Debit / Credit Card</option>
@@ -583,40 +583,43 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     <Smartphone className="w-3.5 h-3.5" />
                   </div>
                   <div>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-emerald-950 block">Lipa na M-Pesa STK Push Prompt</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-emerald-950 block">Lipa na M-Pesa · Direct Paybill (SIM Toolkit) or STK</span>
                         <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-300 font-mono">
                           PAYBILL {(settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379') ? settings.mpesaPaybillNumber : '522522'}
+                        </span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-900 text-white font-mono uppercase">
+                          {(settings?.mpesaProvider || 'kcb_buni') === 'kcb_buni' ? 'KCB Buni' : 'Daraja'}
                         </span>
                         <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold uppercase border ${
                           settings?.mpesaEnvironment === 'production'
                             ? 'bg-emerald-600 text-white border-emerald-700'
                             : 'bg-amber-100 text-amber-800 border-amber-300'
                         }`}>
-                          {settings?.mpesaEnvironment === 'production' ? 'Production (Live)' : 'Sandbox (Testing)'}
+                          {settings?.mpesaEnvironment === 'production' ? 'Production (Live)' : 'Paybill Direct / Sandbox'}
                         </span>
                       </div>
                       <span className="text-[11px] text-emerald-700 block">
-                        Dispatches prompt of {formatCurrency(totalInc, currencySymbol)} · Acc No: <strong className="font-mono">{settings?.mpesaAccountNumber || '1358024235'}</strong> · {settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
+                        Customer pays via <strong>M-Pesa &rarr; Pay Bill</strong> · Paybill: <strong className="font-mono">{(settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379') ? settings.mpesaPaybillNumber : '522522'}</strong> · Acc No: <strong className="font-mono">{settings?.mpesaAccountNumber || '1358024235'}</strong> · {settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD'}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {onOpenMpesaSettings && (
-                      <button
-                        type="button"
-                        onClick={onOpenMpesaSettings}
-                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors ${
-                          settings?.mpesaEnvironment === 'production'
-                            ? 'bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-400'
-                            : 'bg-slate-900 hover:bg-slate-800 text-white'
-                        }`}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>{settings?.mpesaEnvironment === 'production' ? 'Production (Live) Settings' : 'Switch to Production (Live)'}</span>
-                      </button>
-                    )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {onOpenMpesaSettings && (
+                    <button
+                      type="button"
+                      onClick={onOpenMpesaSettings}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors ${
+                        settings?.mpesaEnvironment === 'production'
+                          ? 'bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-400'
+                          : 'bg-slate-900 hover:bg-slate-800 text-white'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>{settings?.mpesaEnvironment === 'production' ? 'Production (Live) Settings' : 'M-Pesa API Settings'}</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={isStkPushing || totalInc <= 0}
@@ -627,7 +630,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                       }
                       setErrorMsg(null);
                       setIsStkPushing(true);
-                      setStkStatusText('Connecting to Safaricom Daraja...');
+                      setStkStatusText(`Connecting to ${(settings?.mpesaProvider || 'kcb_buni') === 'kcb_buni' ? 'KCB Buni' : 'Safaricom Daraja'}...`);
                       try {
                         const res = await initiateStkPush({
                           phoneNumber: customerPhone.trim(),
@@ -639,8 +642,8 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                           setStkCheckoutId(res.CheckoutRequestID);
                           setIsStkPushing(false);
                           setStkStatusText(res.isSimulated 
-                            ? `Sandbox mode: Safaricom Sandbox cannot push Paybill ${res.shortcode || '522522'} to phones (${res.darajaError || 'requires Production Daraja keys'}). Enter M-Pesa code or click Simulate.` 
-                            : `Live STK Prompt sent to ${customerPhone} (Paybill ${res.shortcode || '522522'} · Acc ${res.accountNumber || '1358024235'}). Awaiting PIN.`);
+                            ? `Sandbox mode: ${res.darajaError || 'Simulated STK push active'}. Enter customer M-Pesa Paybill code below.` 
+                            : `${res.provider === 'kcb_buni' ? 'KCB Buni' : 'Live'} STK Prompt sent to ${customerPhone} (Paybill ${res.shortcode || '522522'} · Acc ${res.accountNumber || '1358024235'}). Awaiting PIN.`);
                         } else {
                           throw new Error(res.error || 'Failed to dispatch prompt.');
                         }
@@ -661,7 +664,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     ) : (
                       <>
                         <Smartphone className="w-3.5 h-3.5" />
-                        <span>Send STK Push Prompt</span>
+                        <span>Optional: Send STK Push</span>
                       </>
                     )}
                   </button>
@@ -675,7 +678,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                     {isMpesaConfirmed ? (
                       <span className="text-emerald-700 flex items-center gap-1 font-bold">
                         <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Payment Confirmed by Safaricom</span>
+                        <span>Payment Confirmed</span>
                       </span>
                     ) : stkCheckoutId ? (
                       <span className="text-amber-700 flex items-center gap-1 font-medium">
@@ -683,7 +686,7 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                         <span>Awaiting Customer M-Pesa Payment...</span>
                       </span>
                     ) : (
-                      <span className="text-slate-500">M-Pesa Receipt Ref Code:</span>
+                      <span className="text-slate-700">Enter M-Pesa Paybill SMS Code (e.g. from SIM Toolkit):</span>
                     )}
                   </div>
                   {stkStatusText && (
@@ -704,30 +707,71 @@ export const NewSaleModal: React.FC<NewSaleModalProps> = ({
                   />
                   
                   {settings?.mpesaEnvironment !== 'production' && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (stkCheckoutId) {
-                          try {
-                            const conf = await simulateStkConfirm(stkCheckoutId);
-                            const code = conf.mpesaReceiptNumber || `S${Math.random().toString(36).substring(2, 6).toUpperCase()}${Math.floor(10000 + Math.random() * 90000)}`;
-                            setMpesaReceiptCode(code);
-                            setIsMpesaConfirmed(true);
-                            setStkStatusText(`Payment Confirmed (Sandbox)! Ref: ${code}`);
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        disabled={isStkPushing || totalInc <= 0}
+                        onClick={async () => {
+                          if (!customerPhone.trim()) {
+                            setErrorMsg('Please input customer phone number first (e.g. 0722 849 204).');
                             return;
-                          } catch (e) {
-                            // fallback
                           }
-                        }
-                        const code = `SBA${Math.floor(10000 + Math.random() * 90000)}KZ`;
-                        setMpesaReceiptCode(code);
-                        setIsMpesaConfirmed(true);
-                        setStkStatusText(`Payment Confirmed (Sandbox)! Ref: ${code}`);
-                      }}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-medium cursor-pointer"
-                    >
-                      Simulate PIN / Confirm
-                    </button>
+                          setErrorMsg(null);
+                          setIsStkPushing(true);
+                          setStkStatusText('Sending Sandbox handset test STK Push (Shortcode 174379)...');
+                          try {
+                            const res = await initiateStkPush({
+                              phoneNumber: customerPhone.trim(),
+                              amount: totalInc,
+                              accountReference: settings?.mpesaAccountNumber || '1358024235',
+                              transactionDesc: 'PANZER PARTS',
+                              useSandboxTestShortcode: true,
+                            });
+                            if (res.CheckoutRequestID) {
+                              setStkCheckoutId(res.CheckoutRequestID);
+                              setIsStkPushing(false);
+                              setStkStatusText(`Live Sandbox Popup (174379) sent to ${customerPhone}! Check your phone.`);
+                            } else {
+                              throw new Error(res.error || 'Failed to dispatch Sandbox handset popup.');
+                            }
+                          } catch (err: any) {
+                            setIsStkPushing(false);
+                            const msg = err.message || 'Failed to dispatch Sandbox handset popup.';
+                            setErrorMsg(msg);
+                            setStkStatusText(msg);
+                          }
+                        }}
+                        className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded text-xs font-medium cursor-pointer"
+                        title="Tests real Daraja Sandbox STK popup on phone using Safaricom test shortcode 174379"
+                      >
+                        Test Handset Popup (174379)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (stkCheckoutId) {
+                            try {
+                              const conf = await simulateStkConfirm(stkCheckoutId);
+                              const code = conf.mpesaReceiptNumber || `S${Math.random().toString(36).substring(2, 6).toUpperCase()}${Math.floor(10000 + Math.random() * 90000)}`;
+                              setMpesaReceiptCode(code);
+                              setIsMpesaConfirmed(true);
+                              setStkStatusText(`Payment Confirmed (Sandbox)! Ref: ${code}`);
+                              return;
+                            } catch (e) {
+                              // fallback
+                            }
+                          }
+                          const code = `SBA${Math.floor(10000 + Math.random() * 90000)}KZ`;
+                          setMpesaReceiptCode(code);
+                          setIsMpesaConfirmed(true);
+                          setStkStatusText(`Payment Confirmed (Sandbox)! Ref: ${code}`);
+                        }}
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-xs font-medium cursor-pointer"
+                      >
+                        Simulate PIN / Confirm
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

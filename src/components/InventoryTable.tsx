@@ -341,13 +341,13 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                     {/* Part Number & OEM */}
                     <td className="py-3 px-4 align-top whitespace-nowrap">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-md bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-0.5">
                           {part.imageUrl ? (
                             <img
                               src={part.imageUrl}
                               alt=""
                               referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
                               onError={(e) => {
                                 (e.target as HTMLElement).style.display = 'none';
                               }}

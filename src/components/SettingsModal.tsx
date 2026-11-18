@@ -79,7 +79,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   // M-Pesa Daraja Firebase Storage & Test State
   const [serverMpesaStatus, setServerMpesaStatus] = useState<MpesaStatusResponse | null>(null);
   const [testingDaraja, setTestingDaraja] = useState(false);
-  const [darajaTestStatus, setDarajaTestStatus] = useState<{ success: boolean; message: string; tokenPreview?: string } | null>(null);
+  const [darajaTestStatus, setDarajaTestStatus] = useState<{
+    success: boolean;
+    message: string;
+    tokenPreview?: string;
+    suggestedProvider?: 'kcb_buni' | 'daraja';
+    suggestedEnvironment?: 'sandbox' | 'production';
+  } | null>(null);
   const [showDarajaSecret, setShowDarajaSecret] = useState(false);
   const [copiedCallback, setCopiedCallback] = useState(false);
   const [savingDarajaToFirebase, setSavingDarajaToFirebase] = useState(false);
@@ -98,6 +104,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           mpesaShortcode: (res.shortcode && res.shortcode !== '174379') ? res.shortcode : '522522',
           mpesaAccountNumber: res.accountNumber || prev.mpesaAccountNumber || '1358024235',
           mpesaAccountName: res.accountName || prev.mpesaAccountName || 'PANZER AUTOPARTS LTD',
+          mpesaProvider: res.provider || prev.mpesaProvider || 'kcb_buni',
           mpesaEnvironment: res.environment || prev.mpesaEnvironment || 'sandbox',
         }));
       })
@@ -107,7 +114,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const activeProvider = form.mpesaProvider || 'kcb_buni';
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalizedForm: InventorySettings = {
       ...form,
@@ -116,21 +125,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       mpesaShortcode: form.mpesaShortcode && form.mpesaShortcode !== '174379' ? form.mpesaShortcode.trim() : '522522',
       mpesaAccountNumber: form.mpesaAccountNumber?.trim() || '1358024235',
       mpesaAccountName: form.mpesaAccountName?.trim() || 'PANZER AUTOPARTS LTD',
+      mpesaProvider: form.mpesaProvider || 'kcb_buni',
+      mpesaEnvironment: form.mpesaEnvironment || 'sandbox',
     };
     // Save public business settings (sanitized, zero secrets stored in localStorage or /settings/current)
     onSaveSettings(normalizedForm);
 
-    // If new secrets or M-Pesa config were entered, securely persist them to Firebase Firestore via backend
-    if (normalizedForm.mpesaConsumerKey?.trim() || normalizedForm.mpesaConsumerSecret?.trim() || normalizedForm.mpesaPasskey?.trim() || normalizedForm.mpesaShortcode || normalizedForm.mpesaAccountNumber || normalizedForm.mpesaEnvironment) {
-      updateDarajaConfig({
-        consumerKey: normalizedForm.mpesaConsumerKey?.trim(),
-        consumerSecret: normalizedForm.mpesaConsumerSecret?.trim(),
+    // Securely persist M-Pesa config & secrets to Firebase Firestore via backend
+    try {
+      await updateDarajaConfig({
+        provider: normalizedForm.mpesaProvider || 'kcb_buni',
+        consumerKey: normalizedForm.mpesaConsumerKey?.trim() || undefined,
+        consumerSecret: normalizedForm.mpesaConsumerSecret?.trim() || undefined,
         shortcode: normalizedForm.mpesaShortcode || normalizedForm.mpesaPaybillNumber || '522522',
         accountNumber: normalizedForm.mpesaAccountNumber || '1358024235',
         accountName: normalizedForm.mpesaAccountName || 'PANZER AUTOPARTS LTD',
-        passkey: normalizedForm.mpesaPasskey?.trim(),
+        passkey: normalizedForm.mpesaPasskey?.trim() || undefined,
         environment: normalizedForm.mpesaEnvironment || 'sandbox',
-      }).catch(console.error);
+      });
+    } catch (err) {
+      console.error(err);
     }
 
     setSavedNotice(true);
@@ -148,8 +162,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const normalizedAccNumber = form.mpesaAccountNumber?.trim() || '1358024235';
       const normalizedAccName = form.mpesaAccountName?.trim() || 'PANZER AUTOPARTS LTD';
       const normalizedEnv = form.mpesaEnvironment || 'sandbox';
+      const normalizedProvider = form.mpesaProvider || 'kcb_buni';
 
       const res = await updateDarajaConfig({
+        provider: normalizedProvider,
         consumerKey: form.mpesaConsumerKey?.trim() || undefined,
         consumerSecret: form.mpesaConsumerSecret?.trim() || undefined,
         shortcode: normalizedShortcode,
@@ -166,6 +182,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         mpesaTillNumber: normalizedShortcode,
         mpesaAccountNumber: normalizedAccNumber,
         mpesaAccountName: normalizedAccName,
+        mpesaProvider: normalizedProvider,
         mpesaEnvironment: normalizedEnv,
       });
 
@@ -180,14 +197,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const handleTestDaraja = async () => {
+  const handleTestDaraja = async (
+    overrideProvider?: 'kcb_buni' | 'daraja',
+    overrideEnv?: 'sandbox' | 'production'
+  ) => {
     const key = form.mpesaConsumerKey?.trim();
     const secret = form.mpesaConsumerSecret?.trim();
+    const targetProvider = overrideProvider || activeProvider;
+    const targetEnv = overrideEnv || form.mpesaEnvironment || 'sandbox';
 
     if (!key && !secret && !serverMpesaStatus?.configured) {
       setDarajaTestStatus({
         success: false,
-        message: 'Please enter both Consumer Key and Consumer Secret from your Daraja app first.',
+        message: 'Please enter both Consumer Key and Consumer Secret from your app first.',
       });
       return;
     }
@@ -196,15 +218,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setDarajaTestStatus(null);
     try {
       const res = await testDarajaCredentials({
+        provider: targetProvider,
         consumerKey: key || '',
         consumerSecret: secret || '',
-        environment: form.mpesaEnvironment || 'sandbox',
+        environment: targetEnv,
       });
-      setDarajaTestStatus(res);
+      setDarajaTestStatus({
+        success: res.success,
+        message: res.message || res.error || 'OAuth test failed.',
+        tokenPreview: res.tokenPreview,
+        suggestedProvider: res.suggestedProvider,
+        suggestedEnvironment: res.suggestedEnvironment,
+      });
     } catch (err: any) {
       setDarajaTestStatus({
         success: false,
-        message: err.message || 'Failed to authenticate with Safaricom Daraja API.',
+        message: err.message || 'Failed to authenticate with M-Pesa gateway API.',
       });
     } finally {
       setTestingDaraja(false);
@@ -280,7 +309,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>M-Pesa Daraja</span>
+            <span>M-Pesa API ({activeProvider === 'kcb_buni' ? 'KCB Buni' : 'Daraja'})</span>
             <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono uppercase ${
               form.mpesaEnvironment === 'production'
                 ? 'bg-emerald-600 text-white'
@@ -698,18 +727,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Smartphone className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>M-Pesa Daraja API Configuration</span>
+                  <h3 className="text-xs font-bold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                    <span>M-Pesa API Gateway Configuration</span>
+                    <span className="text-[9px] px-1.5 py-0.5 font-mono rounded border font-bold uppercase bg-slate-900 text-white border-slate-900">
+                      {activeProvider === 'kcb_buni' ? 'KCB Buni' : 'Daraja'}
+                    </span>
                     <span className={`text-[9px] px-1.5 py-0.5 font-mono rounded border font-bold uppercase ${
                       form.mpesaEnvironment === 'production'
                         ? 'bg-emerald-600 text-white border-emerald-700'
                         : 'bg-amber-100 text-amber-800 border-amber-300'
                     }`}>
-                      {form.mpesaEnvironment === 'production' ? 'Production Live' : 'Sandbox Mode'}
+                      {form.mpesaEnvironment === 'production' ? 'Production Live' : 'Sandbox / UAT'}
                     </span>
                   </h3>
                   <p className="text-[10px] text-slate-500">
-                    Configure Paybill 522522, Acc 1358024235, and Daraja Gateway Environment
+                    Configure Paybill 522522, Acc 1358024235, API Provider, and Environment
                   </p>
                 </div>
               </div>
@@ -717,12 +749,75 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleTestDaraja}
+                  onClick={() => handleTestDaraja()}
                   disabled={testingDaraja}
                   className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 rounded border border-emerald-300 cursor-pointer transition-colors disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3 h-3 ${testingDaraja ? 'animate-spin' : ''}`} />
-                  <span>{testingDaraja ? 'Testing...' : 'Test Daraja API'}</span>
+                  <span>{testingDaraja ? 'Testing...' : activeProvider === 'kcb_buni' ? 'Test KCB Buni API' : 'Test Daraja API'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Gateway Provider Selector (KCB Buni vs Safaricom Daraja) */}
+            <div className="p-3 bg-white border border-emerald-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-900">
+                  M-Pesa API Gateway Provider
+                </label>
+                <span className="text-[10px] font-mono text-slate-500">
+                  Paybill <strong className="text-emerald-800">522522</strong> · Acc <strong className="text-emerald-800">1358024235</strong>
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm({ ...form, mpesaProvider: 'kcb_buni' });
+                    setDarajaTestStatus(null);
+                  }}
+                  className={`py-2.5 px-3.5 rounded-lg border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                    activeProvider === 'kcb_buni'
+                      ? 'border-emerald-700 bg-emerald-600 text-white shadow-xs'
+                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                  }`}
+                >
+                  <div>
+                    <div className="text-xs font-bold">KCB Buni (M-Pesa Express)</div>
+                    <div className={`text-[10px] ${activeProvider === 'kcb_buni' ? 'text-emerald-50' : 'text-slate-500'}`}>
+                      For KCB Paybill 522522 &amp; Acc 1358024235
+                    </div>
+                  </div>
+                  <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase shrink-0 ${
+                    activeProvider === 'kcb_buni' ? 'bg-white text-emerald-800' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {activeProvider === 'kcb_buni' ? 'Selected' : 'Use KCB'}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForm({ ...form, mpesaProvider: 'daraja' });
+                    setDarajaTestStatus(null);
+                  }}
+                  className={`py-2.5 px-3.5 rounded-lg border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
+                    activeProvider === 'daraja'
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
+                      : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                  }`}
+                >
+                  <div>
+                    <div className="text-xs font-bold">Safaricom Daraja</div>
+                    <div className={`text-[10px] ${activeProvider === 'daraja' ? 'text-slate-200' : 'text-slate-500'}`}>
+                      Direct Safaricom Business Shortcode
+                    </div>
+                  </div>
+                  <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase shrink-0 ${
+                    activeProvider === 'daraja' ? 'bg-white text-slate-900' : 'bg-slate-200 text-slate-600'
+                  }`}>
+                    {activeProvider === 'daraja' ? 'Selected' : 'Daraja'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -731,18 +826,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="p-3.5 bg-white border-2 border-emerald-300 rounded-xl space-y-2.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-900">
-                  Daraja Gateway Environment
+                  {activeProvider === 'kcb_buni' ? 'KCB Buni Environment' : 'Daraja Gateway Environment'}
                 </label>
                 <span className="text-[10px] font-mono text-slate-500">
                   Current: <strong className={form.mpesaEnvironment === 'production' ? 'text-emerald-700' : 'text-amber-700'}>
-                    {form.mpesaEnvironment === 'production' ? 'PRODUCTION (LIVE)' : 'SANDBOX (TESTING)'}
+                    {form.mpesaEnvironment === 'production' ? 'PRODUCTION (LIVE)' : 'SANDBOX (UAT TESTING)'}
                   </strong>
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setForm({ ...form, mpesaEnvironment: 'sandbox' })}
+                  onClick={() => {
+                    setForm({ ...form, mpesaEnvironment: 'sandbox' });
+                    setDarajaTestStatus(null);
+                  }}
                   className={`py-3 px-4 rounded-xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
                     (form.mpesaEnvironment || 'sandbox') === 'sandbox'
                       ? 'border-amber-600 bg-amber-500 text-white shadow-sm ring-2 ring-amber-300'
@@ -750,9 +848,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   }`}
                 >
                   <div>
-                    <div className="text-xs font-bold">Sandbox (Testing)</div>
+                    <div className="text-xs font-bold">Sandbox (Testing / UAT)</div>
                     <div className={`text-[10px] mt-0.5 ${(form.mpesaEnvironment || 'sandbox') === 'sandbox' ? 'text-amber-50' : 'text-slate-600'}`}>
-                      Simulated STK for testing
+                      {activeProvider === 'kcb_buni' ? 'uat.buni.kcbgroup.com (Sandbox keys)' : 'Simulated STK for testing'}
                     </div>
                   </div>
                   <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase shrink-0 ${
@@ -766,7 +864,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setForm({ ...form, mpesaEnvironment: 'production' })}
+                  onClick={() => {
+                    setForm({ ...form, mpesaEnvironment: 'production' });
+                    setDarajaTestStatus(null);
+                  }}
                   className={`py-3 px-4 rounded-xl border-2 text-left transition-all cursor-pointer flex items-center justify-between gap-2 ${
                     form.mpesaEnvironment === 'production'
                       ? 'border-emerald-700 bg-emerald-600 text-white shadow-md ring-2 ring-emerald-300'
@@ -776,7 +877,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div>
                     <div className="text-xs font-bold">Production (Live)</div>
                     <div className="text-[10px] text-emerald-50 mt-0.5">
-                      Live phone STK for Paybill 522522
+                      {activeProvider === 'kcb_buni' ? 'api.buni.kcbgroup.com (Live Paybill 522522)' : 'Live phone STK for Paybill 522522'}
                     </div>
                   </div>
                   <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase shrink-0 bg-white text-emerald-800">
@@ -784,9 +885,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </span>
                 </button>
               </div>
-              <p className="text-[10px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2 leading-relaxed">
-                <strong>Important for Paybill 522522:</strong> Safaricom&apos;s <strong>Sandbox</strong> rejects live Paybill <code>522522</code> (<code>Merchant does not exist</code>). Click <strong>Production (Live)</strong> above, paste your Production Consumer Key, Consumer Secret, and Passkey below, then click <strong>Save M-Pesa Config to Firebase</strong>.
-              </p>
+              {activeProvider === 'kcb_buni' ? (
+                <p className="text-[10px] text-emerald-950 bg-emerald-50 border border-emerald-200 rounded-lg p-2 leading-relaxed">
+                  <strong>KCB Buni (Paybill 522522 · Acc 1358024235):</strong> Use <strong>Sandbox (Testing / UAT)</strong> for your KCB Buni Sandbox keys (<code>uat.buni.kcbgroup.com</code>), and switch to <strong>Production (Live)</strong> once you paste your Production keys from <code>buni.kcbgroup.com</code>.
+                </p>
+              ) : (
+                <p className="text-[10px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2 leading-relaxed">
+                  <strong>Important for Paybill 522522:</strong> Safaricom&apos;s <strong>Sandbox</strong> rejects live Paybill <code>522522</code> (<code>Merchant does not exist</code>). Use <strong>KCB Buni</strong> above for KCB Paybill <code>522522</code> + Acc <code>1358024235</code>, or switch Daraja to <strong>Production (Live)</strong> with Daraja Go-Live keys.
+                </p>
+              )}
             </div>
 
             {/* Firebase Security & Storage Banner */}
@@ -819,22 +926,51 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
             {/* Test Status Banner */}
             {darajaTestStatus && (
-              <div className={`p-2.5 rounded-lg border flex items-center gap-2 text-xs ${
+              <div className={`p-3 rounded-lg border flex items-start gap-2 text-xs ${
                 darajaTestStatus.success 
                   ? 'bg-emerald-100/70 border-emerald-300 text-emerald-900' 
                   : 'bg-rose-50 border-rose-200 text-rose-800'
               }`}>
                 {darajaTestStatus.success ? (
-                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-700" />
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-700 mt-0.5" />
                 ) : (
-                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
                 )}
-                <div>
-                  <div className="font-semibold">{darajaTestStatus.message}</div>
+                <div className="flex-1 space-y-1.5">
+                  <div className="font-semibold leading-snug">{darajaTestStatus.message}</div>
                   {darajaTestStatus.tokenPreview && (
-                    <div className="text-[10px] font-mono text-emerald-700 mt-0.5">
+                    <div className="text-[10px] font-mono text-emerald-700">
                       Bearer Token: {darajaTestStatus.tokenPreview}
                     </div>
+                  )}
+                  {!darajaTestStatus.success && darajaTestStatus.suggestedEnvironment && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nextProvider = darajaTestStatus.suggestedProvider || activeProvider;
+                        const nextEnv = darajaTestStatus.suggestedEnvironment!;
+                        const nextForm = {
+                          ...form,
+                          mpesaProvider: nextProvider,
+                          mpesaEnvironment: nextEnv,
+                        };
+                        setForm(nextForm);
+                        await updateDarajaConfig({
+                          provider: nextProvider,
+                          environment: nextEnv,
+                        });
+                        onSaveSettings(nextForm);
+                        const fresh = await getMpesaStatus();
+                        setServerMpesaStatus(fresh);
+                        await handleTestDaraja(nextProvider, nextEnv);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded text-[11px] font-bold cursor-pointer"
+                    >
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span>
+                        Switch to {darajaTestStatus.suggestedProvider === 'daraja' ? 'Daraja' : 'KCB Buni'} ({darajaTestStatus.suggestedEnvironment === 'production' ? 'Production Live' : 'Sandbox / UAT'}) &amp; Save
+                      </span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -851,13 +987,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Daraja Consumer Key
+                  {activeProvider === 'kcb_buni' ? 'KCB Buni Consumer Key' : 'Daraja Consumer Key'}
                 </label>
                 <input
                   type="text"
                   value={form.mpesaConsumerKey || ''}
                   onChange={(e) => setForm({ ...form, mpesaConsumerKey: e.target.value.trim() })}
-                  placeholder={serverMpesaStatus?.maskedConsumerKey ? `Saved: ${serverMpesaStatus.maskedConsumerKey}` : "Paste Consumer Key from Daraja app"}
+                  placeholder={serverMpesaStatus?.maskedConsumerKey ? `Saved: ${serverMpesaStatus.maskedConsumerKey}` : "Paste Consumer Key from your app"}
                   className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
               </div>
@@ -865,22 +1001,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[11px] font-semibold text-slate-700">
-                    Daraja Consumer Secret
+                    {activeProvider === 'kcb_buni' ? 'KCB Buni Consumer Secret' : 'Daraja Consumer Secret'}
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowDarajaSecret(!showDarajaSecret)}
-                    className="text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-0.5 cursor-pointer"
-                  >
-                    {showDarajaSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                    <span>{showDarajaSecret ? 'Hide' : 'Show'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {(form.mpesaConsumerSecret || serverMpesaStatus?.hasSecret) && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setForm({ ...form, mpesaConsumerSecret: '' });
+                          setDarajaTestStatus(null);
+                          if (serverMpesaStatus?.hasSecret) {
+                            await updateDarajaConfig({ clearConsumerSecret: true });
+                            const fresh = await getMpesaStatus();
+                            setServerMpesaStatus(fresh);
+                            setDarajaFirebaseSavedMsg('Consumer Secret cleared. Paste your new Consumer Secret and save.');
+                            setTimeout(() => setDarajaFirebaseSavedMsg(null), 4000);
+                          }
+                        }}
+                        className="text-[10px] text-rose-600 hover:text-rose-800 font-semibold cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowDarajaSecret(!showDarajaSecret)}
+                      className="text-[10px] text-slate-500 hover:text-slate-800 flex items-center gap-0.5 cursor-pointer"
+                    >
+                      {showDarajaSecret ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showDarajaSecret ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
                 </div>
                 <input
                   type={showDarajaSecret ? 'text' : 'password'}
                   value={form.mpesaConsumerSecret || ''}
                   onChange={(e) => setForm({ ...form, mpesaConsumerSecret: e.target.value.trim() })}
-                  placeholder={serverMpesaStatus?.configured ? "••••••••••••••••••••••••••••••••" : "Paste Consumer Secret from Daraja app"}
+                  placeholder={serverMpesaStatus?.hasSecret ? "••••••••••••••••••••••••••••••••" : "Paste Consumer Secret from your app"}
                   className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
               </div>
@@ -933,19 +1090,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Daraja Passkey (Lipa na M-Pesa Online)
+                  {activeProvider === 'kcb_buni' ? 'Org Passkey (Optional for Shared 522522)' : 'Daraja Passkey (Lipa na M-Pesa Online)'}
                 </label>
                 <input
                   type="password"
                   value={form.mpesaPasskey || ''}
                   onChange={(e) => setForm({ ...form, mpesaPasskey: e.target.value.trim() })}
-                  placeholder={serverMpesaStatus?.hasPasskey ? '•••••••••••••••• (Saved in Firestore)' : 'Paste Daraja Online Passkey'}
+                  placeholder={activeProvider === 'kcb_buni' ? 'Optional (leave blank for KCB shared 522522)' : serverMpesaStatus?.hasPasskey ? '•••••••••••••••• (Saved in Firestore)' : 'Paste Daraja Online Passkey'}
                   className="w-full p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs focus:outline-none focus:ring-1 focus:ring-emerald-600"
                 />
                 <span className="text-[10px] text-slate-400 mt-0.5 block">
-                  {form.mpesaEnvironment === 'production'
-                    ? 'Enter your Production Lipa na M-Pesa Passkey for Paybill 522522'
-                    : 'Leave blank to keep saved passkey, or paste a new passkey'}
+                  {activeProvider === 'kcb_buni'
+                    ? 'Leave blank when using KCB shared Paybill 522522 (account 1358024235).'
+                    : form.mpesaEnvironment === 'production'
+                      ? 'Enter your Production Lipa na M-Pesa Passkey for Paybill 522522'
+                      : 'Leave blank to keep saved passkey, or paste a new passkey'}
                 </span>
               </div>
             </div>

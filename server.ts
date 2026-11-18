@@ -44,10 +44,13 @@ try {
   console.warn('[Firebase] Warning: Failed to initialize Firebase in server:', fbErr);
 }
 
-// In-memory Daraja transaction cache and runtime credential store
+// In-memory M-Pesa transaction cache and runtime credential store
+type MpesaProvider = 'kcb_buni' | 'daraja';
+
 interface MpesaTransactionState {
   checkoutRequestId: string;
   merchantRequestId?: string;
+  provider?: MpesaProvider;
   phoneNumber: string;
   amount: number;
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'FAILED';
@@ -94,16 +97,17 @@ function checkRateLimit(
 
 // Runtime credentials store (Loaded from Firebase Firestore /settings/secrets or env)
 let runtimeCredentials = {
+  provider: ((process.env.MPESA_PROVIDER || 'kcb_buni').toLowerCase() === 'daraja' ? 'daraja' : 'kcb_buni') as MpesaProvider,
   consumerKey: process.env.MPESA_CONSUMER_KEY || '',
   consumerSecret: process.env.MPESA_CONSUMER_SECRET || '',
   shortcode: process.env.MPESA_SHORTCODE || '522522',
   accountNumber: process.env.MPESA_ACCOUNT_NUMBER || '1358024235',
   accountName: process.env.MPESA_ACCOUNT_NAME || 'PANZER AUTOPARTS LTD',
-  passkey: process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
+  passkey: process.env.MPESA_PASSKEY || '',
   environment: (process.env.MPESA_ENVIRONMENT || 'sandbox').toLowerCase() as 'sandbox' | 'production',
 };
 
-// Cached OAuth token keyed by environment + consumerKey so sandbox & production tokens never collide
+// Cached OAuth token keyed by provider + environment + consumerKey so sandbox & production tokens never collide
 let cachedToken: { cacheKey: string; token: string; expiresAt: number } | null = null;
 let activeAdminAccessCode = '1234';
 
@@ -136,8 +140,11 @@ async function syncCredentialsFromFirebase() {
     const snap = await getDoc(secretsRef);
     if (snap.exists()) {
       const data = snap.data();
-      if (data.consumerKey) runtimeCredentials.consumerKey = String(data.consumerKey).trim();
-      if (data.consumerSecret) runtimeCredentials.consumerSecret = String(data.consumerSecret).trim();
+      if (data.provider === 'kcb_buni' || data.provider === 'daraja') {
+        runtimeCredentials.provider = data.provider;
+      }
+      if (data.consumerKey !== undefined) runtimeCredentials.consumerKey = String(data.consumerKey).trim();
+      if (data.consumerSecret !== undefined) runtimeCredentials.consumerSecret = String(data.consumerSecret).trim();
       // Ensure prompts are directed to Paybill 522522
       if (data.shortcode && data.shortcode !== '174379') {
         runtimeCredentials.shortcode = String(data.shortcode).trim();
@@ -154,9 +161,11 @@ async function syncCredentialsFromFirebase() {
       } else {
         runtimeCredentials.accountName = 'PANZER AUTOPARTS LTD';
       }
-      if (data.passkey) runtimeCredentials.passkey = String(data.passkey).trim();
-      if (data.environment) runtimeCredentials.environment = data.environment;
-      console.log(`[Firebase] Successfully synchronized M-Pesa Daraja API secrets from Firestore (/settings/secrets). Paybill: ${runtimeCredentials.shortcode}, Acc No: ${runtimeCredentials.accountNumber}, Till: ${runtimeCredentials.accountName}`);
+      if (data.passkey !== undefined) runtimeCredentials.passkey = String(data.passkey).trim();
+      if (data.environment === 'sandbox' || data.environment === 'production') {
+        runtimeCredentials.environment = data.environment;
+      }
+      console.log(`[Firebase] Successfully synchronized M-Pesa (${runtimeCredentials.provider}) API secrets from Firestore (/settings/secrets). Env: ${runtimeCredentials.environment}, Paybill: ${runtimeCredentials.shortcode}, Acc No: ${runtimeCredentials.accountNumber}, Title: ${runtimeCredentials.accountName}`);
     } else {
       runtimeCredentials.shortcode = '522522';
       runtimeCredentials.accountNumber = '1358024235';
@@ -211,10 +220,10 @@ function generateStkPassword(shortcode: string, passkey: string, timestamp: stri
   return Buffer.from(raw).toString('base64');
 }
 
-// Helper: Fetch OAuth token from Daraja
+// Helper: Fetch OAuth token from Safaricom Daraja
 async function getDarajaToken(consumerKey: string, consumerSecret: string, isProduction = false): Promise<string> {
   const now = Date.now();
-  const cacheKey = `${isProduction ? 'production' : 'sandbox'}:${consumerKey}`;
+  const cacheKey = `daraja:${isProduction ? 'production' : 'sandbox'}:${consumerKey}`;
   if (cachedToken && cachedToken.cacheKey === cacheKey && cachedToken.expiresAt > now + 60000) {
     return cachedToken.token;
   }
@@ -237,7 +246,42 @@ async function getDarajaToken(consumerKey: string, consumerSecret: string, isPro
   }
 
   const data = (await response.json()) as { access_token: string; expires_in: string };
-  const expiresInMs = parseInt(data.expires_in, 10) * 1000;
+  const expiresInMs = (parseInt(data.expires_in, 10) || 3599) * 1000;
+  cachedToken = {
+    cacheKey,
+    token: data.access_token,
+    expiresAt: now + expiresInMs,
+  };
+  return data.access_token;
+}
+
+// Helper: Fetch OAuth token from KCB Buni (MpesaExpressAPIService)
+async function getKcbBuniToken(consumerKey: string, consumerSecret: string, isProduction = false): Promise<string> {
+  const now = Date.now();
+  const cacheKey = `kcb_buni:${isProduction ? 'production' : 'sandbox'}:${consumerKey}`;
+  if (cachedToken && cachedToken.cacheKey === cacheKey && cachedToken.expiresAt > now + 60000) {
+    return cachedToken.token;
+  }
+
+  const baseUrl = isProduction ? 'https://api.buni.kcbgroup.com' : 'https://uat.buni.kcbgroup.com';
+  const authUrl = `${baseUrl}/token?grant_type=client_credentials`;
+  const authHeader = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+
+  const response = await fetch(authUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${authHeader}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`KCB Buni ${isProduction ? 'Production' : 'UAT/Sandbox'} OAuth authentication failed (${response.status}): ${errorText || 'Invalid Consumer Key or Secret for this environment.'}`);
+  }
+
+  const data = (await response.json()) as { access_token: string; expires_in?: number | string };
+  const expiresInMs = (Number(data.expires_in) || 3600) * 1000;
   cachedToken = {
     cacheKey,
     token: data.access_token,
@@ -247,14 +291,17 @@ async function getDarajaToken(consumerKey: string, consumerSecret: string, isPro
 }
 
 // -------------------------------------------------------------
-// API Routes for M-Pesa Daraja
+// API Routes for M-Pesa (KCB Buni & Safaricom Daraja)
 // -------------------------------------------------------------
 
 // 1. Status endpoint
 app.get('/api/mpesa/status', (_req: Request, res: Response) => {
   const hasKey = Boolean(runtimeCredentials.consumerKey && runtimeCredentials.consumerKey !== 'YOUR_DARAJA_CONSUMER_KEY');
   const hasSecret = Boolean(runtimeCredentials.consumerSecret && runtimeCredentials.consumerSecret !== 'YOUR_DARAJA_CONSUMER_SECRET');
-  const hasPasskey = Boolean(runtimeCredentials.passkey);
+  const hasPasskey = Boolean(
+    runtimeCredentials.passkey &&
+    runtimeCredentials.passkey !== 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
+  );
 
   const maskedConsumerKey = hasKey
     ? (runtimeCredentials.consumerKey.length > 8
@@ -262,28 +309,39 @@ app.get('/api/mpesa/status', (_req: Request, res: Response) => {
         : '••••••••')
     : '';
 
+  const providerLabel = runtimeCredentials.provider === 'kcb_buni' ? 'KCB Buni' : 'Safaricom Daraja';
+
   res.json({
     status: 'ok',
+    provider: runtimeCredentials.provider,
     environment: runtimeCredentials.environment,
     shortcode: runtimeCredentials.shortcode,
     accountNumber: runtimeCredentials.accountNumber,
     accountName: runtimeCredentials.accountName,
     configured: hasKey && hasSecret,
     hasCustomCredentials: hasKey && hasSecret,
+    hasSecret,
     storedInFirebase: true,
     hasPasskey,
     maskedConsumerKey,
-    message: hasKey && hasSecret 
-      ? `Custom Daraja API credentials securely loaded from Firebase Firestore (/settings/secrets). Prompt directed to Paybill: ${runtimeCredentials.shortcode}, Acc: ${runtimeCredentials.accountNumber}` 
-      : `Ready with M-Pesa prompt directed to Paybill ${runtimeCredentials.shortcode || '522522'} (Acc No: ${runtimeCredentials.accountNumber || '1358024235'}, ${runtimeCredentials.accountName || 'PANZER AUTOPARTS LTD'})`,
+    message: hasKey && hasSecret
+      ? `${providerLabel} API credentials securely loaded from Firebase Firestore (/settings/secrets). Prompt directed to Paybill: ${runtimeCredentials.shortcode}, Acc: ${runtimeCredentials.accountNumber}`
+      : `Ready (${providerLabel}) with M-Pesa prompt directed to Paybill ${runtimeCredentials.shortcode || '522522'} (Acc No: ${runtimeCredentials.accountNumber || '1358024235'}, ${runtimeCredentials.accountName || 'PANZER AUTOPARTS LTD'})`,
   });
 });
 
-// 2. Save / update runtime Daraja credentials into Firebase Firestore (Protected by Admin Auth)
+// 2. Save / update runtime M-Pesa credentials into Firebase Firestore (Protected by Admin Auth)
 app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Response) => {
-  const { consumerKey, consumerSecret, shortcode, accountNumber, accountName, passkey, environment } = req.body;
+  const { provider, consumerKey, consumerSecret, clearConsumerSecret, shortcode, accountNumber, accountName, passkey, environment } = req.body;
+  if (provider === 'kcb_buni' || provider === 'daraja') {
+    runtimeCredentials.provider = provider;
+  }
   if (consumerKey) runtimeCredentials.consumerKey = String(consumerKey).trim();
-  if (consumerSecret) runtimeCredentials.consumerSecret = String(consumerSecret).trim();
+  if (clearConsumerSecret) {
+    runtimeCredentials.consumerSecret = '';
+  } else if (consumerSecret) {
+    runtimeCredentials.consumerSecret = String(consumerSecret).trim();
+  }
   if (shortcode) {
     const cleanedShortcode = String(shortcode).trim();
     runtimeCredentials.shortcode = cleanedShortcode === '174379' || !cleanedShortcode ? '522522' : cleanedShortcode;
@@ -300,7 +358,9 @@ app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Respons
   } else if (!runtimeCredentials.accountName) {
     runtimeCredentials.accountName = 'PANZER AUTOPARTS LTD';
   }
-  if (passkey) runtimeCredentials.passkey = String(passkey).trim();
+  if (passkey !== undefined && String(passkey).trim()) {
+    runtimeCredentials.passkey = String(passkey).trim();
+  }
   if (environment === 'sandbox' || environment === 'production') runtimeCredentials.environment = environment;
 
   // Clear token cache to force fresh token retrieval
@@ -311,6 +371,7 @@ app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Respons
     try {
       const secretsRef = doc(firestoreDb, 'settings', 'secrets');
       await setDoc(secretsRef, {
+        provider: runtimeCredentials.provider,
         consumerKey: runtimeCredentials.consumerKey,
         consumerSecret: runtimeCredentials.consumerSecret,
         shortcode: runtimeCredentials.shortcode,
@@ -320,8 +381,18 @@ app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Respons
         environment: runtimeCredentials.environment,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
+
+      const currentSettingsRef = doc(firestoreDb, 'settings', 'current');
+      const currentSettingsSnap = await getDoc(currentSettingsRef);
+      if (currentSettingsSnap.exists()) {
+        await setDoc(currentSettingsRef, {
+          mpesaProvider: runtimeCredentials.provider,
+          mpesaEnvironment: runtimeCredentials.environment,
+        }, { merge: true });
+      }
+
       savedToFirebase = true;
-      console.log(`[Firebase] Daraja credentials saved to Firestore /settings/secrets (Paybill: ${runtimeCredentials.shortcode}, Acc: ${runtimeCredentials.accountNumber}, Title: ${runtimeCredentials.accountName})`);
+      console.log(`[Firebase] M-Pesa (${runtimeCredentials.provider}) credentials saved to Firestore /settings/secrets (Env: ${runtimeCredentials.environment}, Paybill: ${runtimeCredentials.shortcode}, Acc: ${runtimeCredentials.accountNumber}, Title: ${runtimeCredentials.accountName})`);
     } catch (saveErr: any) {
       console.error('[Firebase] Failed to save secrets to Firestore:', saveErr.message);
     }
@@ -330,9 +401,10 @@ app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Respons
   res.json({
     success: true,
     message: savedToFirebase
-      ? 'M-Pesa Daraja credentials securely saved to Firebase Firestore'
-      : 'M-Pesa Daraja credentials updated in runtime',
+      ? `M-Pesa (${runtimeCredentials.provider === 'kcb_buni' ? 'KCB Buni' : 'Daraja'}) credentials securely saved to Firebase Firestore`
+      : 'M-Pesa credentials updated in runtime',
     savedToFirebase,
+    provider: runtimeCredentials.provider,
     environment: runtimeCredentials.environment,
     shortcode: runtimeCredentials.shortcode,
     accountNumber: runtimeCredentials.accountNumber,
@@ -340,33 +412,103 @@ app.post('/api/mpesa/config', verifyAdminAuth, async (req: Request, res: Respons
   });
 });
 
-// 3. Test Daraja credentials against Safaricom OAuth (Protected by Admin Auth)
+// 3. Test M-Pesa OAuth credentials against KCB Buni or Safaricom Daraja (Protected by Admin Auth)
 app.post('/api/mpesa/test-credentials', verifyAdminAuth, async (req: Request, res: Response) => {
+  const key = String(req.body.consumerKey || runtimeCredentials.consumerKey || '').trim();
+  const secret = String(req.body.consumerSecret || runtimeCredentials.consumerSecret || '').trim();
+  const env = (req.body.environment || runtimeCredentials.environment || 'sandbox') as 'sandbox' | 'production';
+  const provider: MpesaProvider =
+    req.body.provider === 'daraja' || req.body.provider === 'kcb_buni'
+      ? req.body.provider
+      : runtimeCredentials.provider;
+  const isProd = env === 'production';
+
+  if (!key || !secret) {
+    return res.status(400).json({
+      success: false,
+      error: 'Missing Consumer Key or Consumer Secret. Please input them from your app first.',
+    });
+  }
+
   try {
-    const key = req.body.consumerKey || runtimeCredentials.consumerKey;
-    const secret = req.body.consumerSecret || runtimeCredentials.consumerSecret;
-    const env = req.body.environment || runtimeCredentials.environment;
-    const isProd = env === 'production';
+    const token = provider === 'kcb_buni'
+      ? await getKcbBuniToken(key, secret, isProd)
+      : await getDarajaToken(key, secret, isProd);
 
-    if (!key || !secret) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing Consumer Key or Consumer Secret. Please input them from your Daraja app.',
-      });
-    }
+    const label = provider === 'kcb_buni'
+      ? `KCB Buni (${isProd ? 'Production Live' : 'UAT / Sandbox'})`
+      : `Safaricom Daraja (${isProd ? 'Production Live' : 'Sandbox'})`;
 
-    const token = await getDarajaToken(key, secret, isProd);
     return res.json({
       success: true,
-      message: 'Successfully authenticated with Safaricom Daraja API!',
+      message: `Successfully authenticated with ${label}!`,
       tokenPreview: `${token.slice(0, 8)}...${token.slice(-6)}`,
+      provider,
       environment: env,
     });
   } catch (err: any) {
-    console.error('Daraja OAuth verification failed:', err);
+    console.error(`${provider} OAuth verification failed:`, err);
+
+    // Probe opposite environment & opposite provider to give exact actionable guidance
+    if (provider === 'kcb_buni') {
+      try {
+        await getKcbBuniToken(key, secret, !isProd);
+        return res.status(400).json({
+          success: false,
+          suggestedProvider: 'kcb_buni',
+          suggestedEnvironment: isProd ? 'sandbox' : 'production',
+          error: isProd
+            ? 'Environment mismatch: These Consumer Key & Secret belong to KCB Buni UAT / SANDBOX (uat.buni.kcbgroup.com), not Production. Switch Gateway Environment above to "Sandbox (Testing / UAT)", or paste Production keys from buni.kcbgroup.com.'
+            : 'Environment mismatch: These Consumer Key & Secret belong to KCB Buni PRODUCTION (api.buni.kcbgroup.com), not UAT/Sandbox. Switch Gateway Environment above to "Production (Live)".',
+        });
+      } catch {}
+
+      try {
+        await getDarajaToken(key, secret, isProd);
+        return res.status(400).json({
+          success: false,
+          suggestedProvider: 'daraja',
+          suggestedEnvironment: env,
+          error: `Provider mismatch: These keys authenticate with Safaricom Daraja (${isProd ? 'Production' : 'Sandbox'}), not KCB Buni. Switch Gateway Provider to "Safaricom Daraja".`,
+        });
+      } catch {}
+    } else {
+      try {
+        await getDarajaToken(key, secret, !isProd);
+        return res.status(400).json({
+          success: false,
+          suggestedProvider: 'daraja',
+          suggestedEnvironment: isProd ? 'sandbox' : 'production',
+          error: isProd
+            ? 'Environment mismatch: These Consumer Key & Secret belong to a Safaricom SANDBOX app, not Production. Switch Gateway Environment above to "Sandbox (Testing / UAT)", or paste Production Go-Live keys from developer.safaricom.co.ke.'
+            : 'Environment mismatch: These Consumer Key & Secret belong to a Safaricom PRODUCTION app, not Sandbox. Switch Gateway Environment above to "Production (Live)".',
+        });
+      } catch {}
+
+      try {
+        await getKcbBuniToken(key, secret, false);
+        return res.status(400).json({
+          success: false,
+          suggestedProvider: 'kcb_buni',
+          suggestedEnvironment: 'sandbox',
+          error: 'Provider mismatch: These keys belong to KCB Buni (UAT / Sandbox). Switch Gateway Provider to "KCB Buni" and Environment to "Sandbox (Testing / UAT)".',
+        });
+      } catch {}
+
+      try {
+        await getKcbBuniToken(key, secret, true);
+        return res.status(400).json({
+          success: false,
+          suggestedProvider: 'kcb_buni',
+          suggestedEnvironment: 'production',
+          error: 'Provider mismatch: These keys belong to KCB Buni (Production). Switch Gateway Provider to "KCB Buni" and Environment to "Production (Live)".',
+        });
+      } catch {}
+    }
+
     return res.status(400).json({
       success: false,
-      error: err.message || 'Failed to authenticate with Safaricom Daraja API. Please check your credentials.',
+      error: err.message || 'Failed to authenticate with M-Pesa gateway API. Please check your credentials.',
     });
   }
 });
@@ -429,12 +571,166 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
       : rawDesc.slice(0, 13);
 
     const isProd = runtimeCredentials.environment === 'production';
-    const baseUrl = isProd ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
     const configuredShortcode = (runtimeCredentials.shortcode && runtimeCredentials.shortcode !== '174379')
       ? runtimeCredentials.shortcode
       : '522522';
     // Only allow Safaricom's Sandbox test shortcode (174379) when explicitly testing handset delivery in Sandbox mode
     const useTestShortcode = !isProd && Boolean(useSandboxTestShortcode);
+    const activeProvider: MpesaProvider = useTestShortcode ? 'daraja' : runtimeCredentials.provider;
+
+    // CallBack URL
+    const host = req.get('host') || 'localhost:3000';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const callbackUrl = process.env.MPESA_CALLBACK_URL || `${protocol}://${host}/api/mpesa/callback`;
+
+    // Branch A: KCB Buni MpesaExpressAPIService (Paybill 522522 + Account 1358024235)
+    if (activeProvider === 'kcb_buni') {
+      if (!runtimeCredentials.consumerKey || !runtimeCredentials.consumerSecret) {
+        if (isProd) {
+          return res.status(400).json({
+            success: false,
+            error: 'Missing KCB Buni Consumer Key or Consumer Secret. Save your Production KCB Buni credentials in Settings.',
+          });
+        }
+        const simulatedCheckoutId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 90000 + 10000)}`;
+        transactionsCache.set(simulatedCheckoutId, {
+          checkoutRequestId: simulatedCheckoutId,
+          provider: 'kcb_buni',
+          phoneNumber: formattedPhone,
+          amount: parsedAmount,
+          status: 'PENDING',
+          isSimulated: true,
+          createdAt: Date.now(),
+        });
+        return res.json({
+          success: true,
+          isSimulated: true,
+          provider: 'kcb_buni',
+          shortcode: configuredShortcode,
+          accountNumber: safeAccountRef,
+          accountName: defaultAccName,
+          darajaError: 'KCB Buni credentials not configured yet.',
+          MerchantRequestID: `KCB_${Date.now()}`,
+          CheckoutRequestID: simulatedCheckoutId,
+          ResponseCode: '0',
+          ResponseDescription: `STK push simulated for Paybill ${configuredShortcode} (Sandbox Mode)`,
+          CustomerMessage: `Sandbox simulation active for KCB Paybill ${configuredShortcode} (Acc: ${safeAccountRef}).`,
+        });
+      }
+
+      let buniToken: string;
+      try {
+        buniToken = await getKcbBuniToken(runtimeCredentials.consumerKey, runtimeCredentials.consumerSecret, isProd);
+      } catch (authErr: any) {
+        console.warn('KCB Buni OAuth failed:', authErr.message);
+        return res.status(400).json({
+          success: false,
+          provider: 'kcb_buni',
+          error: authErr.message,
+        });
+      }
+
+      const buniBaseUrl = isProd ? 'https://api.buni.kcbgroup.com' : 'https://uat.buni.kcbgroup.com';
+      const customPasskey = (
+        runtimeCredentials.passkey &&
+        runtimeCredentials.passkey !== 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
+      ) ? runtimeCredentials.passkey : '';
+
+      const usingSharedKcbPaybill = configuredShortcode === '522522' && !customPasskey;
+      const buniPayload = {
+        phoneNumber: formattedPhone,
+        amount: String(parsedAmount),
+        invoiceNumber: safeAccountRef,
+        sharedShortCode: usingSharedKcbPaybill,
+        orgShortCode: usingSharedKcbPaybill ? '' : configuredShortcode,
+        orgPassKey: customPasskey,
+        callbackUrl,
+        transactionDescription: safeTxDesc,
+      };
+
+      const stkResponse = await fetch(`${buniBaseUrl}/mm/api/request/1.0.0/stkpush`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${buniToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(buniPayload),
+      });
+
+      const rawText = await stkResponse.text();
+      let stkResult: any = {};
+      try {
+        stkResult = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        stkResult = { rawText };
+      }
+
+      const respObj = stkResult?.response || stkResult || {};
+      const headerObj = stkResult?.header || {};
+      const responseCode = String(respObj.ResponseCode ?? respObj.responseCode ?? headerObj.statusCode ?? '');
+      const checkoutRequestId =
+        respObj.CheckoutRequestID ||
+        respObj.checkoutRequestID ||
+        stkResult?.CheckoutRequestID ||
+        stkResult?.checkoutRequestID;
+      const merchantRequestId =
+        respObj.MerchantRequestID ||
+        respObj.merchantRequestID ||
+        stkResult?.MerchantRequestID ||
+        stkResult?.merchantRequestID ||
+        `KCB_${Date.now()}`;
+      const responseDescription =
+        respObj.ResponseDescription ||
+        respObj.responseDescription ||
+        headerObj.statusDescription ||
+        stkResult?.fault?.description ||
+        stkResult?.fault?.message ||
+        stkResult?.errorMessage ||
+        stkResult?.message ||
+        (typeof stkResult?.rawText === 'string' ? stkResult.rawText : '');
+      const customerMessage =
+        respObj.CustomerMessage ||
+        respObj.customerMessage ||
+        responseDescription;
+
+      if (!stkResponse.ok || (responseCode && responseCode !== '0') || !checkoutRequestId) {
+        console.warn('KCB Buni STK push rejected:', stkResponse.status, stkResult);
+        return res.status(400).json({
+          success: false,
+          provider: 'kcb_buni',
+          error: responseDescription || `KCB Buni rejected STK push (HTTP ${stkResponse.status}). Ensure your app is subscribed to MpesaExpressAPIService.`,
+          details: stkResult,
+        });
+      }
+
+      transactionsCache.set(checkoutRequestId, {
+        checkoutRequestId,
+        merchantRequestId,
+        provider: 'kcb_buni',
+        phoneNumber: formattedPhone,
+        amount: parsedAmount,
+        status: 'PENDING',
+        isSimulated: false,
+        createdAt: Date.now(),
+      });
+
+      return res.json({
+        success: true,
+        isSimulated: false,
+        provider: 'kcb_buni',
+        shortcode: configuredShortcode,
+        accountNumber: safeAccountRef,
+        accountName: defaultAccName,
+        MerchantRequestID: merchantRequestId,
+        CheckoutRequestID: checkoutRequestId,
+        ResponseCode: responseCode || '0',
+        ResponseDescription: responseDescription || 'Success. Request accepted for processing',
+        CustomerMessage: customerMessage || `KCB Buni STK push for Paybill ${configuredShortcode} (Acc: ${safeAccountRef}) dispatched to ${formattedPhone}. Please enter your M-Pesa PIN.`,
+      });
+    }
+
+    // Branch B: Safaricom Daraja STK Push
+    const baseUrl = isProd ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
     const shortcode = useTestShortcode ? '174379' : configuredShortcode;
     const passkey = useTestShortcode
       ? 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
@@ -442,21 +738,14 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
     const timestamp = getMpesaTimestamp();
     const password = generateStkPassword(shortcode, passkey, timestamp);
 
-    // CallBack URL: Fallback to dummy/echo if no host provided
-    const host = req.get('host') || 'localhost:3000';
-    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const callbackUrl = process.env.MPESA_CALLBACK_URL || `${protocol}://${host}/api/mpesa/callback`;
-
     let darajaToken: string;
     try {
       if (runtimeCredentials.consumerKey && runtimeCredentials.consumerSecret) {
         darajaToken = await getDarajaToken(runtimeCredentials.consumerKey, runtimeCredentials.consumerSecret, isProd);
       } else {
-        // Fallback for initial demo or unconfigured state: generate simulated STK request
         throw new Error('NO_CREDENTIALS');
       }
     } catch (authErr: any) {
-      // If no custom credentials or Daraja auth rejected in sandbox, provide simulation
       console.warn('Daraja Token generation skipped or failed:', authErr.message);
       if (isProd) {
         return res.status(400).json({
@@ -467,6 +756,7 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
       const simulatedCheckoutId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 90000 + 10000)}`;
       transactionsCache.set(simulatedCheckoutId, {
         checkoutRequestId: simulatedCheckoutId,
+        provider: 'daraja',
         phoneNumber: formattedPhone,
         amount: parsedAmount,
         status: 'PENDING',
@@ -477,6 +767,7 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
       return res.json({
         success: true,
         isSimulated: true,
+        provider: 'daraja',
         shortcode: configuredShortcode,
         accountNumber: safeAccountRef,
         accountName: defaultAccName,
@@ -523,6 +814,7 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
         const simulatedCheckoutId = `ws_CO_${Date.now()}_${Math.floor(Math.random() * 90000 + 10000)}`;
         transactionsCache.set(simulatedCheckoutId, {
           checkoutRequestId: simulatedCheckoutId,
+          provider: 'daraja',
           phoneNumber: formattedPhone,
           amount: parsedAmount,
           status: 'PENDING',
@@ -534,10 +826,11 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
         return res.json({
           success: true,
           isSimulated: true,
+          provider: 'daraja',
           shortcode: configuredShortcode,
           accountNumber: safeAccountRef,
           accountName: defaultAccName,
-          darajaError: `${darajaReason} — Safaricom Daraja Sandbox does not push live Paybill ${configuredShortcode} to phones; Production Daraja credentials + Passkey are required for live handsets.`,
+          darajaError: `${darajaReason} — Safaricom Daraja Sandbox does not push live Paybill ${configuredShortcode} to phones; use KCB Buni or Production Daraja credentials.`,
           MerchantRequestID: `MR_${Date.now()}`,
           CheckoutRequestID: simulatedCheckoutId,
           ResponseCode: '0',
@@ -559,6 +852,7 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
     transactionsCache.set(checkoutRequestId, {
       checkoutRequestId,
       merchantRequestId: stkResult.MerchantRequestID,
+      provider: 'daraja',
       phoneNumber: formattedPhone,
       amount: parsedAmount,
       status: 'PENDING',
@@ -569,6 +863,7 @@ app.post('/api/mpesa/stkpush', async (req: Request, res: Response) => {
     return res.json({
       success: true,
       isSimulated: false,
+      provider: 'daraja',
       shortcode,
       accountNumber: safeAccountRef,
       accountName: defaultAccName,
@@ -595,7 +890,7 @@ app.post('/api/mpesa/query', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'CheckoutRequestID is required' });
     }
 
-    // 1. Check if callback already arrived and marked completed
+    // 1. Check if callback already arrived and updated transaction state
     const cached = transactionsCache.get(CheckoutRequestID);
     if (cached && cached.status === 'COMPLETED') {
       return res.json({
@@ -608,14 +903,40 @@ app.post('/api/mpesa/query', async (req: Request, res: Response) => {
         phoneNumber: cached.phoneNumber,
       });
     }
+    if (cached && cached.status === 'CANCELLED') {
+      return res.json({
+        success: false,
+        status: 'CANCELLED',
+        ResultCode: 1032,
+        ResultDesc: cached.resultDesc || 'Transaction was cancelled by user on phone handset.',
+      });
+    }
+    if (cached && cached.status === 'FAILED') {
+      return res.json({
+        success: false,
+        status: Number(cached.resultCode) === 1037 ? 'TIMEOUT' : 'FAILED',
+        ResultCode: cached.resultCode,
+        ResultDesc: cached.resultDesc || 'M-Pesa transaction failed.',
+      });
+    }
 
-    // 2. Skip live Daraja query for simulated sandbox requests
+    // 2. Skip live Daraja query for simulated sandbox requests or KCB Buni (KCB Buni uses webhook callback)
     if (cached?.isSimulated) {
       return res.json({
         success: true,
         status: cached.status,
         message: 'Sandbox simulation active — awaiting manual M-Pesa code or sandbox confirmation.',
         mpesaReceiptNumber: cached.mpesaReceiptNumber,
+      });
+    }
+
+    const txProvider = cached?.provider || runtimeCredentials.provider;
+    if (txProvider === 'kcb_buni') {
+      return res.json({
+        success: true,
+        status: cached?.status || 'PENDING',
+        message: 'Awaiting PIN confirmation via KCB Buni callback...',
+        mpesaReceiptNumber: cached?.mpesaReceiptNumber,
       });
     }
 
@@ -780,40 +1101,59 @@ app.post('/api/mpesa/simulate-confirm', (req: Request, res: Response) => {
   });
 });
 
-// 7. Safaricom Webhook Callback receiver
+// 7. Safaricom Daraja & KCB Buni Webhook Callback receiver
 app.post('/api/mpesa/callback', (req: Request, res: Response) => {
   try {
-    const callbackData = req.body?.Body?.stkCallback;
+    const callbackData =
+      req.body?.Body?.stkCallback ||
+      req.body?.body?.stkCallback ||
+      req.body?.stkCallback ||
+      (req.body?.CheckoutRequestID || req.body?.checkoutRequestID ? req.body : null);
+
     if (callbackData) {
-      const checkoutRequestId = callbackData.CheckoutRequestID;
-      const resultCode = callbackData.ResultCode;
-      const resultDesc = callbackData.ResultDesc;
+      const checkoutRequestId = callbackData.CheckoutRequestID || callbackData.checkoutRequestID;
+      const resultCode = callbackData.ResultCode ?? callbackData.resultCode;
+      const resultDesc = callbackData.ResultDesc || callbackData.resultDesc || '';
+      const numericCode = Number(resultCode);
 
       let mpesaReceiptNumber: string | undefined;
       let amount: number | undefined;
 
-      if (callbackData.CallbackMetadata?.Item) {
-        for (const item of callbackData.CallbackMetadata.Item) {
-          if (item.Name === 'MpesaReceiptNumber') mpesaReceiptNumber = item.Value;
-          if (item.Name === 'Amount') amount = Number(item.Value);
+      const metaItems =
+        callbackData.CallbackMetadata?.Item ||
+        callbackData.callbackMetadata?.item ||
+        callbackData.callbackMetadata?.Item ||
+        [];
+
+      if (Array.isArray(metaItems)) {
+        for (const item of metaItems) {
+          const itemName = item.Name || item.name;
+          const itemValue = item.Value ?? item.value;
+          if (itemName === 'MpesaReceiptNumber') mpesaReceiptNumber = String(itemValue);
+          if (itemName === 'Amount') amount = Number(itemValue);
         }
       }
 
-      const existing: MpesaTransactionState = transactionsCache.get(checkoutRequestId) || {
-        checkoutRequestId,
-        phoneNumber: '',
-        amount: amount || 0,
-        status: resultCode === 0 ? 'COMPLETED' : 'FAILED',
-        createdAt: Date.now(),
-      };
+      if (checkoutRequestId) {
+        const status: MpesaTransactionState['status'] =
+          numericCode === 0 ? 'COMPLETED' : numericCode === 1032 ? 'CANCELLED' : 'FAILED';
 
-      existing.status = resultCode === 0 ? 'COMPLETED' : 'FAILED';
-      existing.resultCode = resultCode;
-      existing.resultDesc = resultDesc;
-      if (mpesaReceiptNumber) existing.mpesaReceiptNumber = mpesaReceiptNumber;
-      transactionsCache.set(checkoutRequestId, existing);
+        const existing: MpesaTransactionState = transactionsCache.get(checkoutRequestId) || {
+          checkoutRequestId,
+          phoneNumber: '',
+          amount: amount || 0,
+          status,
+          createdAt: Date.now(),
+        };
 
-      console.log(`[M-Pesa Callback] ${checkoutRequestId} -> ResultCode: ${resultCode}, Receipt: ${mpesaReceiptNumber}`);
+        existing.status = status;
+        existing.resultCode = resultCode;
+        existing.resultDesc = resultDesc;
+        if (mpesaReceiptNumber) existing.mpesaReceiptNumber = mpesaReceiptNumber;
+        transactionsCache.set(checkoutRequestId, existing);
+
+        console.log(`[M-Pesa Callback] ${checkoutRequestId} -> ResultCode: ${resultCode}, Status: ${status}, Receipt: ${mpesaReceiptNumber}`);
+      }
     }
 
     return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });

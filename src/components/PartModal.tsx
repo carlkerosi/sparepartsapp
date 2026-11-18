@@ -327,7 +327,7 @@ export const PartModal: React.FC<PartModalProps> = ({
                     type="text"
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="Enter Image URL (https://... or /src/assets/...)"
+                    placeholder="Enter Image URL (https://... or /assets/parts/...)"
                     className="flex-1 text-xs font-mono p-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
                   />
                   <label className="px-3 py-2 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg cursor-pointer flex items-center gap-1.5 shrink-0 transition-colors">
@@ -343,29 +343,50 @@ export const PartModal: React.FC<PartModalProps> = ({
                 </div>
 
                 {/* Quick Presets */}
-                <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                  <span className="shrink-0 font-medium">Range Rover Presets:</span>
+                <div className="flex items-start gap-2 text-[11px] text-slate-500">
+                  <span className="shrink-0 font-medium pt-0.5">Range Rover Presets:</span>
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setImageUrl('/src/assets/images/part_ceramic_brake_pads_1792926667949.jpg')}
+                      onClick={() => setImageUrl('/assets/parts/preset-brake-disc.jpg?v=2')}
                       className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
                     >
-                      Brake Discs & Pads
+                      Brake Disc
                     </button>
                     <button
                       type="button"
-                      onClick={() => setImageUrl('/src/assets/images/part_spin_oil_filter_1792926668402.jpg')}
+                      onClick={() => setImageUrl('/assets/parts/preset-brake-pads.jpg?v=2')}
                       className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
                     >
-                      Filters & Trans Pan
+                      Brake Pads
                     </button>
                     <button
                       type="button"
-                      onClick={() => setImageUrl('/src/assets/images/range_rover_air_suspension_1792927570074.jpg')}
+                      onClick={() => setImageUrl('/assets/parts/preset-oil-filter.jpg?v=2')}
                       className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
                     >
-                      Water Pump & Tank
+                      Oil Filter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('/assets/parts/preset-air-filter.jpg?v=2')}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
+                    >
+                      Air Filter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('/assets/parts/preset-water-pump.jpg?v=2')}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
+                    >
+                      Water Pump
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setImageUrl('/assets/parts/preset-air-suspension.jpg?v=2')}
+                      className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[11px] transition-colors cursor-pointer"
+                    >
+                      Air Suspension
                     </button>
                   </div>
                 </div>
@@ -373,13 +394,13 @@ export const PartModal: React.FC<PartModalProps> = ({
 
               {/* Preview Thumbnail */}
               <div className="sm:col-span-1">
-                <div className="w-full aspect-4/3 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center overflow-hidden relative">
+                <div className="w-full aspect-4/3 rounded-lg border border-slate-200 bg-white p-1.5 flex items-center justify-center overflow-hidden relative">
                   {imageUrl ? (
                     <img
                       src={imageUrl}
                       alt="Part preview"
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       onError={(e) => {
                         (e.target as HTMLElement).style.display = 'none';
                       }}

@@ -3,14 +3,18 @@
  * Connects client UI to Express backend proxy endpoints (/api/mpesa/*)
  */
 
+export type MpesaProvider = 'kcb_buni' | 'daraja';
+
 export interface MpesaStatusResponse {
   status: string;
+  provider?: MpesaProvider;
   environment: 'sandbox' | 'production';
   shortcode: string;
   accountNumber?: string;
   accountName?: string;
   configured: boolean;
   hasCustomCredentials: boolean;
+  hasSecret?: boolean;
   storedInFirebase?: boolean;
   maskedConsumerKey?: string;
   hasPasskey?: boolean;
@@ -19,6 +23,7 @@ export interface MpesaStatusResponse {
 
 export interface StkPushResponse {
   success: boolean;
+  provider?: MpesaProvider;
   shortcode?: string;
   accountNumber?: string;
   accountName?: string;
@@ -45,8 +50,10 @@ export interface StkQueryResponse {
 }
 
 export interface DarajaConfigPayload {
+  provider?: MpesaProvider;
   consumerKey?: string;
   consumerSecret?: string;
+  clearConsumerSecret?: boolean;
   shortcode?: string;
   accountNumber?: string;
   accountName?: string;
@@ -65,6 +72,7 @@ export async function getMpesaStatus(): Promise<MpesaStatusResponse> {
   } catch (err: any) {
     return {
       status: 'offline',
+      provider: 'kcb_buni',
       environment: 'sandbox',
       shortcode: '522522',
       accountNumber: '1358024235',
@@ -160,13 +168,21 @@ export async function updateDarajaConfig(config: DarajaConfigPayload): Promise<{
 }
 
 /**
- * Test Daraja credentials with Safaricom OAuth (requires admin authorization)
+ * Test API credentials with KCB Buni or Safaricom Daraja OAuth (requires admin authorization)
  */
 export async function testDarajaCredentials(credentials: {
+  provider?: MpesaProvider;
   consumerKey: string;
   consumerSecret: string;
   environment?: 'sandbox' | 'production';
-}): Promise<{ success: boolean; message: string; tokenPreview?: string; error?: string }> {
+}): Promise<{
+  success: boolean;
+  message: string;
+  tokenPreview?: string;
+  error?: string;
+  suggestedProvider?: MpesaProvider;
+  suggestedEnvironment?: 'sandbox' | 'production';
+}> {
   const res = await fetch('/api/mpesa/test-credentials', {
     method: 'POST',
     headers: { 

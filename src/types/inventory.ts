@@ -55,10 +55,14 @@ export interface SaleItem {
   marginPercent: number; // (grossProfit / lineTotalEx) * 100
 }
 
+export type OrderStatus = 'CONFIRMED' | 'PACKING' | 'DISPATCHED' | 'DELIVERED';
+
 export interface SaleRecord {
   id: string;
   invoiceNumber: string;
   timestamp: string;
+  customerId?: string; // Firebase Auth UID when placed by signed-in customer
+  customerEmail?: string; // Customer email for order tracking lookup
   customerName: string;
   customerPhone?: string;
   deliveryAddress?: string;
@@ -73,6 +77,8 @@ export interface SaleRecord {
   marginPercent: number;
   paymentMethod: 'Cash' | 'Credit Card' | 'Bank Transfer' | 'Store Credit' | 'Mobile Money';
   mpesaReceiptNumber?: string;
+  orderStatus?: OrderStatus;
+  statusUpdatedAt?: string;
   salesPerson?: string;
   notes?: string;
 }
@@ -111,7 +117,8 @@ export interface InventorySettings {
   mpesaConsumerKey?: string; // Daraja Consumer Key
   mpesaConsumerSecret?: string; // Daraja Consumer Secret
   mpesaPasskey?: string; // Daraja Online Passkey
-  mpesaShortcode?: string; // Daraja Business ShortCode (522522)
+  mpesaShortcode?: string; // Business ShortCode (522522)
+  mpesaProvider?: 'kcb_buni' | 'daraja';
   mpesaEnvironment?: 'sandbox' | 'production';
   businessEmail?: string;
   adminAccessCode?: string; // Default '1234'
@@ -130,4 +137,16 @@ export interface AdminAccount {
   lastLogin?: string;
   avatarUrl?: string;
 }
+
+export interface CustomerProfile {
+  uid: string;
+  email: string;
+  displayName: string;
+  phone?: string;
+  defaultDeliveryAddress?: string;
+  defaultVehicleRef?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 

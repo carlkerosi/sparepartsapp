@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SparePart } from '../../types/inventory';
 import { formatCurrency } from '../../utils/calculations';
 import { ShoppingBag, Eye, Check, AlertTriangle, Package, ShieldCheck } from 'lucide-react';
@@ -20,6 +20,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
   const [addedAnim, setAddedAnim] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [part.imageUrl]);
 
   const isOutOfStock = part.stockQuantity <= 0;
   const isLowStock = !isOutOfStock && part.stockQuantity <= part.minStockLevel;
@@ -59,17 +63,17 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 flex flex-col group cursor-pointer"
     >
       {/* Product Image Frame */}
-      <div className="relative w-full aspect-4/3 bg-slate-100 overflow-hidden flex items-center justify-center">
+      <div className="relative w-full aspect-4/3 bg-white border-b border-slate-100 overflow-hidden flex items-center justify-center p-2">
         {part.imageUrl && !imageError ? (
           <img
             src={part.imageUrl}
             alt={part.description}
             referrerPolicy="no-referrer"
             onError={() => setImageError(true)}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-100 to-slate-200/80">
+          <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg">
             <Package className="w-10 h-10 text-slate-400 mb-2 stroke-1" />
             <span className="text-xs font-semibold text-slate-700">{getCategoryFallback()}</span>
             <span className="text-[11px] font-mono text-slate-500 mt-0.5">{part.partNumber}</span>
@@ -77,13 +81,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         {/* Quick View Floating Overlay Button */}
-        <div className="absolute inset-0 bg-slate-950/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        <div className="absolute inset-0 bg-slate-950/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center pb-3">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onQuickView(part);
             }}
-            className="px-3 py-1.5 bg-white/95 text-slate-900 rounded-lg text-xs font-semibold shadow-sm hover:bg-white flex items-center gap-1.5 transition-transform scale-95 group-hover:scale-100"
+            className="px-3 py-1.5 bg-white/95 text-slate-900 rounded-lg text-xs font-semibold shadow-sm border border-slate-200 hover:bg-white flex items-center gap-1.5 transition-transform scale-95 group-hover:scale-100"
           >
             <Eye className="w-3.5 h-3.5" />
             <span>Specifications</span>

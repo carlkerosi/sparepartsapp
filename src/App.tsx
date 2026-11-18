@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { SparePart, SaleRecord, StockMovement, InventorySettings, MovementType, Supplier, SaleItem, AdminAccount } from './types/inventory';
+import { SparePart, SaleRecord, StockMovement, InventorySettings, MovementType, Supplier, SaleItem, AdminAccount, CustomerProfile, OrderStatus } from './types/inventory';
 import { 
   loadParts, 
   saveParts, 
@@ -25,6 +25,7 @@ import {
   subscribeMovements,
   subscribeSettings,
   subscribeAdminAccounts,
+  subscribeCustomerAuthState,
   saveSupplierToFirestore,
   deleteSupplierFromFirestore,
   savePartToFirestore,
@@ -34,8 +35,11 @@ import {
   saveSettingsToFirestore,
   saveAdminAccountToFirestore,
   deleteAdminAccountFromFirestore,
+  saveCustomerProfile,
+  linkSaleToCustomer,
+  updateSaleOrderStatus,
   signInWithGoogleAdmin,
-  signOutAdmin,
+  signOutCustomer,
   clearAllInventoryFromFirestore
 } from './services/firebaseService';
 import { calculateInventoryMetrics, calculateSalesMetrics, calculateIncFromEx } from './utils/calculations';
@@ -64,6 +68,8 @@ import { CartDrawer, CartItem } from './components/storefront/CartDrawer';
 import { ProductDetailModal } from './components/storefront/ProductDetailModal';
 import { CheckoutModal } from './components/storefront/CheckoutModal';
 import { AdminAccessModal } from './components/storefront/AdminAccessModal';
+import { CustomerAuthModal } from './components/storefront/CustomerAuthModal';
+import { OrderTrackingModal } from './components/storefront/OrderTrackingModal';
 import { ShoppingCart } from 'lucide-react';
 
 export default function App() {
@@ -109,6 +115,13 @@ export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedProductForDetail, setSelectedProductForDetail] = useState<SparePart | null>(null);
   const [isProductDetailOpen, setIsProductDetailOpen] = useState(false);
+
+  // Customer Account & Order Tracking States (completely optional to browse/pay)
+  const [currentCustomer, setCurrentCustomer] = useState<CustomerProfile | null>(null);
+  const [isCustomerAuthOpen, setIsCustomerAuthOpen] = useState(false);
+  const [customerAuthMode, setCustomerAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
+  const [lastGuestOrderId, setLastGuestOrderId] = useState<string | null>(null);
 
   // Admin UI Navigation state
   const [activeTab, setActiveTab] = useState<ActiveTab>('inventory');
@@ -199,6 +212,10 @@ export default function App() {
       (err) => console.warn('Using local admins cache:', err)
     );
 
+    const unsubAuth = subscribeCustomerAuthState((customer) => {
+      setCurrentCustomer(customer);
+    });
+
     return () => {
       unsubSuppliers();
       unsubParts();
@@ -206,6 +223,7 @@ export default function App() {
       unsubMovements();
       unsubSettings();
       unsubAdmins();
+      unsubAuth();
     };
   }, []);
 
@@ -264,6 +282,16 @@ export default function App() {
   const cartItemCount = useMemo(() => {
     return cartItems.reduce((sum, item) => sum + (item?.quantity || 0), 0);
   }, [cartItems]);
+
+  const customerOrderCount = useMemo(() => {
+    if (!currentCustomer) return 0;
+    const emailLower = (currentCustomer.email || '').toLowerCase();
+    return sales.filter(
+      (s) =>
+        (s.customerId && s.customerId === currentCustomer.uid) ||
+        (emailLower && s.customerEmail && s.customerEmail.toLowerCase() === emailLower)
+    ).length;
+  }, [currentCustomer, sales]);
 
   // -------------------------------------------------------------
   // STOREFRONT CUSTOMER ACTIONS
@@ -356,6 +384,7 @@ export default function App() {
         id: `sale-${Date.now()}`,
         invoiceNumber,
         timestamp: now.toISOString(),
+        ...(currentCustomer ? { customerId: currentCustomer.uid, customerEmail: currentCustomer.email } : {}),
         customerName: orderPayload.customerName,
         customerPhone: orderPayload.customerPhone,
         deliveryAddress: orderPayload.deliveryAddress,
@@ -370,6 +399,8 @@ export default function App() {
         marginPercent,
         paymentMethod: orderPayload.paymentMethod,
         mpesaReceiptNumber: orderPayload.mpesaReceiptNumber,
+        orderStatus: 'CONFIRMED',
+        statusUpdatedAt: now.toISOString(),
         salesPerson: 'Online Customer Storefront',
         notes: `Delivery: ${orderPayload.deliveryAddress}. ${orderPayload.notes || ''}`.trim(),
       };
@@ -412,6 +443,7 @@ export default function App() {
       setSales([newSaleRecord, ...sales]);
       setMovements([...newMovements, ...movements]);
       setCartItems([]); // Empty cart upon successful order
+      setLastGuestOrderId(currentCustomer ? null : newSaleRecord.id);
 
       // 3. Persist to Firebase Firestore
       try {
@@ -423,13 +455,76 @@ export default function App() {
           const updated = updatedParts.find((p) => p.id === it.part.id);
           if (updated) await savePartToFirestore(updated);
         }
+        if (currentCustomer) {
+          const updatedProfile: CustomerProfile = {
+            ...currentCustomer,
+            displayName: currentCustomer.displayName || orderPayload.customerName,
+            phone: orderPayload.customerPhone || currentCustomer.phone,
+            defaultDeliveryAddress: orderPayload.deliveryAddress || currentCustomer.defaultDeliveryAddress,
+            defaultVehicleRef: orderPayload.vehicleRef || currentCustomer.defaultVehicleRef,
+            updatedAt: now.toISOString(),
+          };
+          setCurrentCustomer(updatedProfile);
+          await saveCustomerProfile(updatedProfile);
+        }
       } catch (e) {
         console.warn('Firebase order sync queued:', e);
       }
 
       return newSaleRecord;
     },
-    [cartItems, sales, parts, movements]
+    [cartItems, sales, parts, movements, currentCustomer]
+  );
+
+  const handleOpenCustomerAuth = useCallback((mode: 'signin' | 'signup' = 'signin') => {
+    setCustomerAuthMode(mode);
+    setIsCustomerAuthOpen(true);
+  }, []);
+
+  const handleCustomerAuthenticated = useCallback(
+    async (profile: CustomerProfile) => {
+      setCurrentCustomer(profile);
+      showToast(`Signed in as ${profile.displayName}. Your orders are synced!`);
+
+      if (lastGuestOrderId) {
+        setSales((prev) =>
+          prev.map((s) =>
+            s.id === lastGuestOrderId
+              ? { ...s, customerId: profile.uid, customerEmail: profile.email }
+              : s
+          )
+        );
+        try {
+          await linkSaleToCustomer(lastGuestOrderId, profile.uid, profile.email);
+          setLastGuestOrderId(null);
+        } catch (e) {
+          console.warn('Could not link guest order to customer:', e);
+        }
+      }
+    },
+    [lastGuestOrderId, showToast]
+  );
+
+  const handleCustomerSignOut = useCallback(async () => {
+    await signOutCustomer();
+    setCurrentCustomer(null);
+    showToast('Signed out of your client account.');
+  }, [showToast]);
+
+  const handleUpdateOrderStatus = useCallback(
+    async (saleId: string, status: OrderStatus) => {
+      const updatedAt = new Date().toISOString();
+      setSales((prev) =>
+        prev.map((s) => (s.id === saleId ? { ...s, orderStatus: status, statusUpdatedAt: updatedAt } : s))
+      );
+      showToast(`Order status updated to ${status}`);
+      try {
+        await updateSaleOrderStatus(saleId, status);
+      } catch (e) {
+        console.warn('Could not sync order status update:', e);
+      }
+    },
+    [showToast]
   );
 
   // -------------------------------------------------------------
@@ -838,24 +933,6 @@ export default function App() {
       } catch (err) {
         console.warn('Firebase settings save cached:', err);
       }
-
-      // Sync Daraja credentials to backend proxy
-      const normalizedShortcode =
-        newSettings.mpesaShortcode && newSettings.mpesaShortcode !== '174379'
-          ? newSettings.mpesaShortcode
-          : newSettings.mpesaPaybillNumber && newSettings.mpesaPaybillNumber !== '174379'
-            ? newSettings.mpesaPaybillNumber
-            : '522522';
-
-      updateDarajaConfig({
-        consumerKey: newSettings.mpesaConsumerKey,
-        consumerSecret: newSettings.mpesaConsumerSecret,
-        shortcode: normalizedShortcode,
-        accountNumber: newSettings.mpesaAccountNumber || '1358024235',
-        accountName: newSettings.mpesaAccountName || 'PANZER AUTOPARTS LTD',
-        passkey: newSettings.mpesaPasskey,
-        environment: newSettings.mpesaEnvironment || 'sandbox',
-      }).catch(console.error);
     },
     []
   );
@@ -988,6 +1065,10 @@ export default function App() {
             onOpenCart={() => setIsCartOpen(true)}
             searchQuery={storefrontSearch}
             onSearchChange={setStorefrontSearch}
+            currentCustomer={currentCustomer}
+            customerOrderCount={customerOrderCount}
+            onOpenAuthModal={handleOpenCustomerAuth}
+            onOpenOrderTracking={() => setIsOrderTrackingOpen(true)}
           />
 
           {/* Storefront Catalog Grid */}
@@ -1130,6 +1211,7 @@ export default function App() {
                   setSaleInitialPart(null);
                   setIsNewSaleModalOpen(true);
                 }}
+                onUpdateOrderStatus={handleUpdateOrderStatus}
               />
             )}
 
@@ -1248,8 +1330,39 @@ export default function App() {
         currencySymbol={settings.currencySymbol}
         defaultTaxRate={settings.defaultTaxRatePercent}
         settings={settings}
+        customer={currentCustomer}
+        onOpenAuthModal={handleOpenCustomerAuth}
+        onOpenOrderTracking={() => setIsOrderTrackingOpen(true)}
         onPlaceOrder={handlePlaceCustomerOrder}
         onViewInvoiceReceipt={(sale) => {
+          setActiveReceiptSale(sale);
+          setIsReceiptModalOpen(true);
+        }}
+      />
+
+      {/* Optional Client Sign-In / Sign-Up Modal */}
+      <CustomerAuthModal
+        isOpen={isCustomerAuthOpen}
+        onClose={() => setIsCustomerAuthOpen(false)}
+        onAuthenticated={handleCustomerAuthenticated}
+        initialMode={customerAuthMode}
+        contextMessage={
+          lastGuestOrderId
+            ? 'Sign in or create an account to save your recent order and track its delivery status.'
+            : undefined
+        }
+      />
+
+      {/* Client Order Tracking & History Modal */}
+      <OrderTrackingModal
+        isOpen={isOrderTrackingOpen}
+        onClose={() => setIsOrderTrackingOpen(false)}
+        customer={currentCustomer}
+        sales={sales}
+        currencySymbol={settings.currencySymbol}
+        onOpenAuthModal={handleOpenCustomerAuth}
+        onSignOut={handleCustomerSignOut}
+        onViewReceipt={(sale) => {
           setActiveReceiptSale(sale);
           setIsReceiptModalOpen(true);
         }}

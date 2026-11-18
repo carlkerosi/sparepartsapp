@@ -1,6 +1,6 @@
 import React from 'react';
-import { ShoppingBag, Search, Shield, Wrench } from 'lucide-react';
-import { formatCurrency } from '../../utils/calculations';
+import { ShoppingBag, Search, Shield, UserCheck, Package } from 'lucide-react';
+import { CustomerProfile } from '../../types/inventory';
 
 interface StorefrontHeaderProps {
   onDoubleClickLogo: () => void;
@@ -12,6 +12,10 @@ interface StorefrontHeaderProps {
   onOpenCart: () => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  currentCustomer?: CustomerProfile | null;
+  customerOrderCount?: number;
+  onOpenAuthModal?: (mode: 'signin' | 'signup') => void;
+  onOpenOrderTracking?: () => void;
 }
 
 export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
@@ -19,11 +23,14 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
   selectedCategory,
   onSelectCategory,
   cartItemCount,
-  cartTotalAmount,
-  currencySymbol,
+  currencySymbol: _currencySymbol,
   onOpenCart,
   searchQuery,
   onSearchChange,
+  currentCustomer,
+  customerOrderCount = 0,
+  onOpenAuthModal,
+  onOpenOrderTracking,
 }) => {
   const CATEGORIES = [
     'ALL',
@@ -36,7 +43,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between gap-8 h-16">
+        <div className="flex items-center justify-between gap-4 sm:gap-8 h-16">
           {/* Zone 1: Single Brand Wordmark with double-click admin access */}
           <div className="flex items-center gap-3 shrink-0">
             <button
@@ -78,19 +85,58 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
             })}
           </nav>
 
-          {/* Zone 3: Search & Shopping Bag Cart */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Zone 3: Search, Order Tracking / Client Account & Shopping Bag Cart */}
+          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
             {/* Quick Search Input */}
-            <div className="relative hidden md:block w-48 xl:w-60">
+            <div className="relative hidden md:block w-44 xl:w-56">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search part #, Vogue, brake pads, water pump..."
+                placeholder="Search part #, Vogue, brake pads..."
                 className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-100 hover:bg-slate-50 focus:bg-white border border-transparent focus:border-slate-300 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none transition-colors"
               />
             </div>
+
+            {/* Client Order Tracking / Optional Sign In Button */}
+            {currentCustomer ? (
+              <button
+                type="button"
+                onClick={onOpenOrderTracking}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                title={`Signed in as ${currentCustomer.email} — Click to track your orders`}
+              >
+                <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
+                <span className="hidden sm:inline max-w-[90px] truncate">
+                  {currentCustomer.displayName.split(' ')[0]}
+                </span>
+                <span className="text-emerald-700 font-mono text-[11px]">
+                  ({customerOrderCount})
+                </span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onOpenOrderTracking}
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  title="Track an order or view your order history"
+                >
+                  <Package className="w-3.5 h-3.5 text-slate-600" />
+                  <span className="hidden sm:inline">Track Orders</span>
+                </button>
+                {onOpenAuthModal && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenAuthModal('signin')}
+                    className="hidden sm:inline-flex items-center px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    Sign In
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Shopping Cart Button */}
             <button
@@ -106,7 +152,7 @@ export const StorefrontHeader: React.FC<StorefrontHeaderProps> = ({
               )}
             </button>
 
-            {/* Discreet Admin shortcut button as an additional friendly affordance */}
+            {/* Discreet Admin shortcut button */}
             <button
               onClick={onDoubleClickLogo}
               title="Admin Inventory Portal (Access Code Required)"

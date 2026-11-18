@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { SaleRecord, InventorySettings } from '../../types/inventory';
+import { SaleRecord, InventorySettings, CustomerProfile } from '../../types/inventory';
 import { formatCurrency } from '../../utils/calculations';
 import { 
   X, 
@@ -20,7 +20,13 @@ import {
   Receipt,
   ArrowRight,
   Wifi,
-  Sparkles
+  Sparkles,
+  LogIn,
+  UserPlus,
+  UserCheck,
+  Copy,
+  CreditCard,
+  Send
 } from 'lucide-react';
 import { CartItem } from './CartDrawer';
 import { 
@@ -36,6 +42,9 @@ interface CheckoutModalProps {
   currencySymbol: string;
   defaultTaxRate: number;
   settings?: InventorySettings;
+  customer?: CustomerProfile | null;
+  onOpenAuthModal?: (mode: 'signin' | 'signup') => void;
+  onOpenOrderTracking?: () => void;
   onPlaceOrder: (orderPayload: {
     customerName: string;
     customerPhone: string;
@@ -55,6 +64,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   currencySymbol,
   defaultTaxRate,
   settings,
+  customer,
+  onOpenAuthModal,
+  onOpenOrderTracking,
   onPlaceOrder,
   onViewInvoiceReceipt,
 }) => {
@@ -62,12 +74,34 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [customerPhone, setCustomerPhone] = useState('0722 849 204');
   const [deliveryAddress, setDeliveryAddress] = useState('Karen Workshop, Nairobi');
   const [vehicleRef, setVehicleRef] = useState('Range Rover Sport L494 3.0 (KDA 482B)');
-  const [paymentMethod, setPaymentMethod] = useState<'Mobile Money' | 'Cash' | 'Bank Transfer'>('Mobile Money');
+
+  useEffect(() => {
+    if (isOpen && customer) {
+      if (customer.displayName && !customerName.trim()) {
+        setCustomerName(customer.displayName);
+      }
+      if (customer.phone) {
+        setCustomerPhone(customer.phone);
+      }
+      if (customer.defaultDeliveryAddress) {
+        setDeliveryAddress(customer.defaultDeliveryAddress);
+      }
+      if (customer.defaultVehicleRef) {
+        setVehicleRef(customer.defaultVehicleRef);
+      }
+    }
+  }, [isOpen, customer]);
+  const [selectedOption, setSelectedOption] = useState<
+    'mpesa_toolkit' | 'cash_on_delivery' | 'bank_transfer' | 'credit_card' | 'mpesa_stk'
+  >('mpesa_toolkit');
   const [cashTendered, setCashTendered] = useState<string>('');
   const [bankReference, setBankReference] = useState('');
+  const [cardReference, setCardReference] = useState('');
   const [notes, setNotes] = useState('');
+  const [copiedField, setCopiedField] = useState<'paybill' | 'account' | 'amount' | 'all' | null>(null);
   
   // Payment confirmation states
+  const [isMpesaToolkitStepActive, setIsMpesaToolkitStepActive] = useState(false);
   const [isStkPromptActive, setIsStkPromptActive] = useState(false);
   const [stkCountdown, setStkCountdown] = useState(30);
   const [stkStatus, setStkStatus] = useState<'idle' | 'dispatching' | 'prompting' | 'verifying' | 'approved' | 'cancelled' | 'failed'>('idle');
@@ -79,12 +113,38 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [darajaCustomerMessage, setDarajaCustomerMessage] = useState<string>('');
   const [darajaStatusNote, setDarajaStatusNote] = useState<string>('');
   
-  // Explicit payment confirmation modal for Cash / Bank Transfer
+  // Explicit payment confirmation modal for Cash / Bank Transfer / Card
   const [isConfirmingOfflinePayment, setIsConfirmingOfflinePayment] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedSale, setConfirmedSale] = useState<SaleRecord | null>(null);
+
+  const paybillNumber =
+    settings?.mpesaPaybillNumber && settings.mpesaPaybillNumber !== '174379'
+      ? settings.mpesaPaybillNumber
+      : '522522';
+  const paybillAccount = settings?.mpesaAccountNumber || '1358024235';
+  const paybillAccountName = settings?.mpesaAccountName || 'PANZER AUTOPARTS LTD';
+
+  const resolvedPaymentMethod: 'Mobile Money' | 'Cash' | 'Bank Transfer' | 'Credit Card' =
+    selectedOption === 'cash_on_delivery'
+      ? 'Cash'
+      : selectedOption === 'bank_transfer'
+      ? 'Bank Transfer'
+      : selectedOption === 'credit_card'
+      ? 'Credit Card'
+      : 'Mobile Money';
+
+  const handleCopyDetail = async (field: 'paybill' | 'account' | 'amount' | 'all', value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1800);
+    } catch {
+      // Clipboard fallback ignored when browser blocks permission
+    }
+  };
 
   const totalInc = items.reduce((sum, item) => sum + (item?.part?.retailPriceInc || 0) * (item?.quantity || 0), 0);
   const totalEx = items.reduce((sum, item) => sum + (item?.part?.retailPriceEx || 0) * (item?.quantity || 0), 0);
@@ -155,7 +215,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setDarajaStatusNote(
       useSandboxTestShortcode
         ? 'Sending Sandbox handset test STK Push (Shortcode 174379)...'
-        : 'Sending STK Push prompt to Safaricom Daraja Gateway...'
+        : `Sending STK Push prompt via ${(settings?.mpesaProvider || 'kcb_buni') === 'kcb_buni' ? 'KCB Buni' : 'Safaricom Daraja'}...`
     );
 
     try {
@@ -174,8 +234,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         setDarajaCustomerMessage(stkResult.CustomerMessage || `STK push dispatched to ${customerPhone}.`);
         setDarajaStatusNote(
           stkResult.isSimulated
-            ? `Sandbox Simulation: Safaricom Sandbox cannot push live KCB Paybill ${stkResult.shortcode || '522522'} to handsets. Pay manually via Paybill ${stkResult.shortcode || '522522'} (Acc ${stkResult.accountNumber || '1358024235'}) and enter your M-Pesa code below, or use a Sandbox test option.`
-            : `Live STK Push dispatched to ${customerPhone} (${useSandboxTestShortcode ? 'Sandbox 174379' : `Paybill ${stkResult.shortcode || '522522'} · Acc ${stkResult.accountNumber || '1358024235'}`}). Check your phone to enter your M-Pesa PIN.`
+            ? `Sandbox Simulation: Pay manually via Paybill ${stkResult.shortcode || '522522'} (Acc ${stkResult.accountNumber || '1358024235'}) and enter your M-Pesa code below, or use a Sandbox test option.`
+            : `${stkResult.provider === 'kcb_buni' ? 'KCB Buni' : 'Live'} STK Push dispatched to ${customerPhone} (${useSandboxTestShortcode ? 'Sandbox 174379' : `Paybill ${stkResult.shortcode || '522522'} · Acc ${stkResult.accountNumber || '1358024235'}`}). Check your phone to enter your M-Pesa PIN.`
         );
         setStkStatus('prompting');
       } else {
@@ -198,10 +258,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
     setErrorMessage(null);
 
-    if (paymentMethod === 'Mobile Money') {
+    if (selectedOption === 'mpesa_toolkit') {
+      const cleaned = manualMpesaCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (cleaned.length >= 8) {
+        await processFinalOrder(cleaned);
+      } else {
+        setIsMpesaToolkitStepActive(true);
+      }
+    } else if (selectedOption === 'mpesa_stk') {
       await triggerStkRequest(false);
     } else {
-      // Open explicit payment confirmation dialog for Cash / Bank Transfer
+      // Open explicit payment confirmation dialog for Cash / Bank Transfer / Card
       setIsConfirmingOfflinePayment(true);
     }
   };
@@ -214,10 +281,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
     setErrorMessage(null);
     setGeneratedMpesaCode(cleaned);
-    setStkStatus('approved');
-    setTimeout(async () => {
+    if (isStkPromptActive) {
+      setStkStatus('approved');
+      setTimeout(async () => {
+        await processFinalOrder(cleaned);
+      }, 600);
+    } else {
       await processFinalOrder(cleaned);
-    }, 600);
+    }
   };
 
   const handleSimulatePinAuthorize = async () => {
@@ -256,23 +327,46 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     await processFinalOrder();
   };
 
-  const processFinalOrder = async (mpesaCode?: string) => {
+  const processFinalOrder = async (mpesaCode?: string, overrideMethod?: 'Mobile Money' | 'Cash' | 'Bank Transfer' | 'Credit Card') => {
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const finalMpesaCode = mpesaCode || (paymentMethod === 'Mobile Money' ? generateMpesaReceipt() : undefined);
+      const effectiveMethod = overrideMethod || resolvedPaymentMethod;
+      const finalMpesaCode =
+        mpesaCode || (effectiveMethod === 'Mobile Money' ? manualMpesaCode.trim().toUpperCase() || undefined : undefined);
+
+      const channelTag =
+        overrideMethod === 'Cash' || selectedOption === 'cash_on_delivery'
+          ? 'Cash on Delivery / Pickup'
+          : selectedOption === 'mpesa_toolkit'
+          ? `M-Pesa SIM Toolkit (Paybill ${paybillNumber} · Acc ${paybillAccount})`
+          : selectedOption === 'mpesa_stk'
+          ? 'M-Pesa Express (STK Push)'
+          : selectedOption === 'bank_transfer'
+          ? `Bank Wire / PesaLink${bankReference ? ` · Ref: ${bankReference}` : ''}`
+          : `Debit / Credit Card (PDQ)${cardReference ? ` · Ref: ${cardReference}` : ''}`;
+
+      const combinedNotes = [
+        notes.trim(),
+        effectiveMethod === 'Cash' && cashTendered ? `Cash tendered: KSh ${cashTendered}` : '',
+        channelTag,
+      ]
+        .filter(Boolean)
+        .join(' | ');
+
       const sale = await onPlaceOrder({
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim(),
         vehicleRef: vehicleRef.trim() || undefined,
         deliveryAddress: deliveryAddress.trim(),
-        paymentMethod,
+        paymentMethod: effectiveMethod,
         mpesaReceiptNumber: finalMpesaCode,
-        notes: notes.trim() || (paymentMethod === 'Cash' && cashTendered ? `Cash tendered: KSh ${cashTendered}` : paymentMethod === 'Bank Transfer' && bankReference ? `Bank Ref: ${bankReference}` : undefined),
+        notes: combinedNotes || undefined,
       });
 
       if (sale) {
         setConfirmedSale(sale);
+        setIsMpesaToolkitStepActive(false);
         setIsStkPromptActive(false);
       }
     } catch (err) {
@@ -285,6 +379,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleCloseAndReset = () => {
     setConfirmedSale(null);
+    setIsMpesaToolkitStepActive(false);
     setIsStkPromptActive(false);
     setIsConfirmingOfflinePayment(false);
     setStkStatus('idle');
@@ -292,6 +387,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsStkSimulated(false);
     setDarajaNotice(null);
     setManualMpesaCode('');
+    setCardReference('');
+    setCopiedField(null);
     setErrorMessage(null);
     onClose();
   };
@@ -307,9 +404,214 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative">
         {/* ========================================================================= */}
-        {/* 1. M-PESA STK PUSH PAYMENT VERIFICATION MODAL                             */}
+        {/* 1A. M-PESA SIM TOOLKIT / PAYBILL DIRECT CONFIRMATION SCREEN               */}
         {/* ========================================================================= */}
-        {isStkPromptActive ? (
+        {isMpesaToolkitStepActive ? (
+          <div className="p-6 sm:p-7 space-y-4 bg-white text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold tracking-wider uppercase text-emerald-700 block">
+                    LIPA NA M-PESA · SIM TOOLKIT / M-PESA APP
+                  </span>
+                  <h3 className="text-sm font-bold text-slate-900">Pay Direct via Paybill {paybillNumber}</h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMpesaToolkitStepActive(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center justify-between">
+                <span>{errorMessage}</span>
+                <button type="button" onClick={() => setErrorMessage(null)} className="text-rose-500 ml-2 cursor-pointer">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Direct 1-Tap Phone Launcher + Step-by-step instructions */}
+            <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 text-xs">
+              <div className="font-bold text-emerald-950 flex flex-wrap items-center justify-between gap-2">
+                <span>Launch M-Pesa on your phone &amp; pay via Paybill:</span>
+                <span className="font-mono text-sm text-emerald-800">{formatCurrency(totalInc, currencySymbol)}</span>
+              </div>
+
+              {/* Direct Phone Dialer Launcher (*334#) + Copy All */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <a
+                  href="tel:*334%23"
+                  onClick={() => handleCopyDetail('account', paybillAccount)}
+                  className="flex-1 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold inline-flex items-center justify-center gap-2 shadow-sm transition-colors no-underline"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>Open M-Pesa on Phone Now (*334#)</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleCopyDetail(
+                      'all',
+                      `Paybill: ${paybillNumber} | Account: ${paybillAccount} | Amount: ${Math.round(totalInc)}`
+                    )
+                  }
+                  className="px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-emerald-300 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {copiedField === 'all' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedField === 'all' ? 'Details Copied!' : 'Copy All Details'}</span>
+                </button>
+              </div>
+
+              <p className="text-[11px] text-emerald-900">
+                Tapping <strong>Open M-Pesa (*334#)</strong> opens Safaricom&apos;s M-Pesa menu directly on your phone and copies Account No. <strong className="font-mono">{paybillAccount}</strong> — or open your phone&apos;s <strong>SIM Toolkit &rarr; M-Pesa</strong> app:
+              </p>
+
+              <ol className="space-y-1 text-slate-700 list-decimal list-inside bg-white/70 p-2.5 rounded-lg border border-emerald-100">
+                <li>
+                  Select <strong>Lipa na M-Pesa &rarr; Pay Bill</strong> (Dial <strong className="font-mono">*334#</strong> or open <strong>SIM Toolkit</strong>)
+                </li>
+                <li>
+                  Enter Business No. <strong className="font-mono">{paybillNumber}</strong> &amp; Account No. <strong className="font-mono">{paybillAccount}</strong>
+                </li>
+                <li>
+                  Enter Amount <strong className="font-mono">{Math.round(totalInc).toLocaleString()}</strong> &amp; confirm <strong className="font-mono">{paybillAccountName}</strong>
+                </li>
+              </ol>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                <div className="p-2.5 bg-white border border-emerald-200 rounded-lg">
+                  <span className="text-[10px] uppercase font-semibold text-slate-500 block">1. Paybill Business No.</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-mono font-bold text-base text-slate-900">{paybillNumber}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyDetail('paybill', paybillNumber)}
+                      className="px-2 py-1 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedField === 'paybill' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedField === 'paybill' ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-white border border-emerald-200 rounded-lg">
+                  <span className="text-[10px] uppercase font-semibold text-slate-500 block">2. Account No.</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-mono font-bold text-sm text-slate-900">{paybillAccount}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyDetail('account', paybillAccount)}
+                      className="px-2 py-1 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedField === 'account' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedField === 'account' ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-white border border-emerald-200 rounded-lg">
+                  <span className="text-[10px] uppercase font-semibold text-slate-500 block">3. Exact Amount</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="font-mono font-bold text-sm text-emerald-700">
+                      {Math.round(totalInc).toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyDetail('amount', String(Math.round(totalInc)))}
+                      className="px-2 py-1 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedField === 'amount' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedField === 'amount' ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-emerald-900 bg-white/80 px-3 py-2 rounded-lg border border-emerald-200 flex items-center justify-between">
+                <span>
+                  Confirm recipient name shows: <strong className="font-mono">{paybillAccountName}</strong> (KCB)
+                </span>
+              </div>
+            </div>
+
+            {/* M-Pesa Confirmation Code Input */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+              <label className="block text-xs font-bold text-slate-900">
+                4. Enter M-Pesa Confirmation Code from your Safaricom SMS *
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={manualMpesaCode}
+                  onChange={(e) => setManualMpesaCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. UAK84920XY"
+                  className="flex-1 px-3 py-2.5 text-sm font-mono font-bold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 uppercase"
+                />
+                <button
+                  type="button"
+                  onClick={handleManualMpesaCodeConfirm}
+                  disabled={isSubmitting || manualMpesaCode.trim().length < 8}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg text-xs font-bold cursor-pointer transition-colors inline-flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>{isSubmitting ? 'Confirming Order...' : 'Confirm M-Pesa Code & Place Order'}</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Your official KRA tax receipt &amp; order tracking number are generated immediately once you enter the M-Pesa code.
+              </p>
+            </div>
+
+            {/* Alternative actions */}
+            <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setIsMpesaToolkitStepActive(false)}
+                className="px-3 py-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium cursor-pointer"
+              >
+                &larr; Change Payment Method
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={async () => {
+                    setSelectedOption('cash_on_delivery');
+                    setIsMpesaToolkitStepActive(false);
+                    await processFinalOrder(undefined, 'Cash');
+                  }}
+                  className="px-3 py-1.5 text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 rounded-lg font-semibold cursor-pointer"
+                >
+                  Pay Cash / M-Pesa on Delivery Instead
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMpesaToolkitStepActive(false);
+                    setSelectedOption('mpesa_stk');
+                    triggerStkRequest(false);
+                  }}
+                  className="px-3 py-1.5 text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg font-semibold inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Send className="w-3 h-3" />
+                  <span>Try STK Push Popup</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : isStkPromptActive ? (
+          /* ========================================================================= */
+          /* 1. M-PESA STK PUSH PAYMENT VERIFICATION MODAL                             */
+          /* ========================================================================= */
           <div className="p-6 sm:p-8 space-y-5 bg-slate-950 text-white relative">
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
@@ -528,17 +830,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
         ) : isConfirmingOfflinePayment ? (
           /* ========================================================================= */
-          /* 1B. OFFLINE PAYMENT CONFIRMATION DIALOG (CASH / BANK TRANSFER)            */
+          /* 1B. OFFLINE / ALTERNATIVE PAYMENT CONFIRMATION (CASH / BANK / CARD)       */
           /* ========================================================================= */
           <div className="p-6 sm:p-8 space-y-5 bg-white text-slate-900">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <div className="p-1.5 bg-slate-900 text-white rounded-lg">
-                  {paymentMethod === 'Cash' ? <Banknote className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
+                  {resolvedPaymentMethod === 'Cash' ? (
+                    <Banknote className="w-4 h-4" />
+                  ) : resolvedPaymentMethod === 'Credit Card' ? (
+                    <CreditCard className="w-4 h-4" />
+                  ) : (
+                    <Building2 className="w-4 h-4" />
+                  )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Payment Confirmation</h3>
-                  <p className="text-xs text-slate-500">Confirm payment received before issuing official receipt</p>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {resolvedPaymentMethod === 'Cash'
+                      ? 'Confirm Cash on Delivery / Counter Pickup'
+                      : resolvedPaymentMethod === 'Credit Card'
+                      ? 'Confirm Card Payment (PDQ / Visa / Mastercard)'
+                      : 'Confirm Bank Transfer / PesaLink'}
+                  </h3>
+                  <p className="text-xs text-slate-500">Review payment instructions before generating your order receipt</p>
                 </div>
               </div>
               <button
@@ -556,15 +870,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span className="font-mono text-emerald-700 text-base">{formatCurrency(totalInc, currencySymbol)}</span>
               </div>
 
-              {paymentMethod === 'Cash' ? (
+              {resolvedPaymentMethod === 'Cash' ? (
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-slate-700">Cash Tendered by Customer:</span>
+                    <span className="font-semibold text-slate-700">Cash Tendered (Optional):</span>
                     <input
                       type="number"
                       value={cashTendered}
                       onChange={(e) => setCashTendered(e.target.value)}
-                      placeholder={`e.g. ${totalInc}`}
+                      placeholder={`e.g. ${Math.round(totalInc)}`}
                       className="w-36 p-1.5 text-xs font-mono font-bold bg-white border border-slate-300 rounded text-right focus:outline-none"
                     />
                   </div>
@@ -575,20 +889,41 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                   )}
                   <p className="text-[11px] text-slate-500">
-                    Payment will be confirmed as collected upon dispatch or workshop counter collection.
+                    Pay cash directly to our Nairobi dispatch rider upon parts inspection or at our Industrial Area counter.
                   </p>
+                </div>
+              ) : resolvedPaymentMethod === 'Credit Card' ? (
+                <div className="space-y-2.5">
+                  <div className="p-2.5 bg-white border border-slate-200 rounded-lg space-y-1 text-[11px]">
+                    <div className="font-bold text-slate-900">Visa · Mastercard · Mobile PDQ Terminal</div>
+                    <p className="text-slate-600">
+                      Our dispatch rider brings a wireless PDQ card machine for tap/chip payment upon delivery, or you can swipe at our Industrial Area counter.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
+                      Card Approval Ref / Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={cardReference}
+                      onChange={(e) => setCardReference(e.target.value.toUpperCase())}
+                      placeholder="e.g. VISA-PDQ-DELIVERY"
+                      className="w-full p-1.5 text-xs font-mono bg-white border border-slate-300 rounded uppercase"
+                    />
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
                   <div className="p-2.5 bg-white border border-slate-200 rounded-lg space-y-1 font-mono text-[11px]">
-                    <div className="text-slate-500">Panzer Autoparts Limited Bank Deposit / RTGS:</div>
-                    <div className="font-bold text-slate-900">KCB Bank Kenya · Acc: 1358024235</div>
-                    <div className="text-slate-700 font-semibold">Account Title: PANZER AUTOPARTS LTD</div>
-                    <div className="text-emerald-700">M-Pesa Paybill: 522522 · Acc No: 1358024235</div>
+                    <div className="text-slate-500">Panzer Autoparts Limited · Bank Wire / PesaLink / RTGS:</div>
+                    <div className="font-bold text-slate-900">KCB Bank Kenya · Acc: {paybillAccount}</div>
+                    <div className="text-slate-700 font-semibold">Account Title: {paybillAccountName}</div>
+                    <div className="text-emerald-700">M-Pesa Paybill: {paybillNumber} · Acc No: {paybillAccount}</div>
                   </div>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-0.5">
-                      Bank Confirmation Ref / Slip # (Optional)
+                      Bank / PesaLink Confirmation Ref (Optional)
                     </label>
                     <input
                       type="text"
@@ -612,12 +947,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </button>
               <button
                 type="button"
-                disabled={isSubmitting || (paymentMethod === 'Cash' && parsedCashTendered > 0 && parsedCashTendered < totalInc)}
+                disabled={isSubmitting || (resolvedPaymentMethod === 'Cash' && parsedCashTendered > 0 && parsedCashTendered < totalInc)}
                 onClick={handleConfirmOfflinePayment}
                 className="px-4 py-2 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 rounded-lg flex items-center gap-1.5 cursor-pointer shadow-sm"
               >
                 <Check className="w-4 h-4 text-emerald-400" />
-                <span>{isSubmitting ? 'Generating Receipt...' : 'Confirm Payment & Issue Receipt'}</span>
+                <span>{isSubmitting ? 'Generating Receipt...' : 'Place Order & Issue Receipt'}</span>
               </button>
             </div>
           </div>
@@ -658,6 +993,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             {/* Printable Receipt Body */}
             <div className="p-6 sm:p-8 overflow-y-auto space-y-4 text-xs" id="printable-receipt">
+              {!customer && onOpenAuthModal && (
+                <div className="p-3 bg-slate-900 text-white rounded-lg flex flex-wrap items-center justify-between gap-2 print:hidden">
+                  <div>
+                    <span className="font-bold text-xs block">Save & Track Order {confirmedSale.invoiceNumber}</span>
+                    <span className="text-[11px] text-slate-300">
+                      Sign in or create an account to follow dispatch status anytime.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => onOpenAuthModal('signin')}
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold cursor-pointer"
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenAuthModal('signup')}
+                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      Create Account
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Payment Verified Stamp Banner */}
               <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -802,16 +1164,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             {/* Bottom Actions */}
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onViewInvoiceReceipt(confirmedSale);
-                  handleCloseAndReset();
-                }}
-                className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg cursor-pointer"
-              >
-                View Fullscreen Tax Invoice
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onViewInvoiceReceipt(confirmedSale);
+                    handleCloseAndReset();
+                  }}
+                  className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  View Fullscreen Tax Invoice
+                </button>
+                {onOpenOrderTracking && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleCloseAndReset();
+                      onOpenOrderTracking();
+                    }}
+                    className="px-3.5 py-2 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Truck className="w-3.5 h-3.5" />
+                    <span>Track Order Status</span>
+                  </button>
+                )}
+              </div>
 
               <div className="flex gap-2">
                 <button
@@ -873,6 +1250,52 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Optional Account Login / Sign Up for Order Tracking */}
+              {customer ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <div className="min-w-0">
+                      <span className="font-bold text-emerald-950 block truncate">
+                        Signed in as {customer.displayName}
+                      </span>
+                      <span className="text-[11px] text-emerald-800 block truncate">
+                        This order will automatically sync to your Order Tracker ({customer.email})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : onOpenAuthModal ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-900 block">
+                      Want to track your order status after paying? (Optional)
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Sign in or create a quick account — or continue below to pay as a guest.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => onOpenAuthModal('signin')}
+                      className="px-2.5 py-1.5 text-xs font-semibold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg inline-flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <LogIn className="w-3 h-3" />
+                      <span>Sign In</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenAuthModal('signup')}
+                      className="px-2.5 py-1.5 text-xs font-semibold text-white bg-slate-900 hover:bg-slate-800 rounded-lg inline-flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <UserPlus className="w-3 h-3" />
+                      <span>Sign Up</span>
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Error Notification Banner */}
               {errorMessage && (
@@ -961,74 +1384,208 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
 
               {/* Payment Method Selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Select Payment Method
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Select Payment Method
+                  </label>
+                  <span className="text-[10px] font-medium text-emerald-700">
+                    M-Pesa SIM Toolkit Recommended
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {/* 1. M-Pesa SIM Toolkit / Direct Paybill (DEFAULT) */}
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod('Mobile Money')}
+                    onClick={() => setSelectedOption('mpesa_toolkit')}
                     className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                      paymentMethod === 'Mobile Money'
-                        ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-500'
+                      selectedOption === 'mpesa_toolkit'
+                        ? 'border-emerald-600 bg-emerald-50/70 ring-1 ring-emerald-500'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <Smartphone className={`w-4 h-4 ${paymentMethod === 'Mobile Money' ? 'text-emerald-700' : 'text-slate-400'}`} />
-                      {paymentMethod === 'Mobile Money' && (
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
-                      )}
+                    <div className="flex items-center justify-between gap-1">
+                      <Smartphone className={`w-4 h-4 ${selectedOption === 'mpesa_toolkit' ? 'text-emerald-700' : 'text-slate-400'}`} />
+                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white">
+                        Default
+                      </span>
                     </div>
                     <div className="mt-2">
-                      <div className="text-xs font-bold text-slate-900">Lipa na M-Pesa</div>
-                      <div className="text-[10px] text-slate-500">STK Push on phone</div>
+                      <div className="text-xs font-bold text-slate-900">M-Pesa SIM Toolkit</div>
+                      <div className="text-[10px] text-slate-600">Paybill {paybillNumber} · Acc {paybillAccount}</div>
                     </div>
                   </button>
 
+                  {/* 2. Cash on Delivery / Workshop Pickup */}
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod('Cash')}
+                    onClick={() => setSelectedOption('cash_on_delivery')}
                     className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                      paymentMethod === 'Cash'
+                      selectedOption === 'cash_on_delivery'
                         ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <Banknote className={`w-4 h-4 ${paymentMethod === 'Cash' ? 'text-slate-900' : 'text-slate-400'}`} />
-                      {paymentMethod === 'Cash' && (
-                        <Check className="w-3.5 h-3.5 text-slate-900" />
-                      )}
+                      <Banknote className={`w-4 h-4 ${selectedOption === 'cash_on_delivery' ? 'text-slate-900' : 'text-slate-400'}`} />
+                      {selectedOption === 'cash_on_delivery' && <Check className="w-3.5 h-3.5 text-slate-900" />}
                     </div>
                     <div className="mt-2">
                       <div className="text-xs font-bold text-slate-900">Cash on Delivery</div>
-                      <div className="text-[10px] text-slate-500">Workshop / Courier</div>
+                      <div className="text-[10px] text-slate-500">Courier or Counter Pickup</div>
                     </div>
                   </button>
 
+                  {/* 3. Bank Transfer / PesaLink */}
                   <button
                     type="button"
-                    onClick={() => setPaymentMethod('Bank Transfer')}
+                    onClick={() => setSelectedOption('bank_transfer')}
                     className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                      paymentMethod === 'Bank Transfer'
+                      selectedOption === 'bank_transfer'
                         ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
                         : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <Building2 className={`w-4 h-4 ${paymentMethod === 'Bank Transfer' ? 'text-slate-900' : 'text-slate-400'}`} />
-                      {paymentMethod === 'Bank Transfer' && (
-                        <Check className="w-3.5 h-3.5 text-slate-900" />
-                      )}
+                      <Building2 className={`w-4 h-4 ${selectedOption === 'bank_transfer' ? 'text-slate-900' : 'text-slate-400'}`} />
+                      {selectedOption === 'bank_transfer' && <Check className="w-3.5 h-3.5 text-slate-900" />}
                     </div>
                     <div className="mt-2">
-                      <div className="text-xs font-bold text-slate-900">Bank Wire / RTGS</div>
-                      <div className="text-[10px] text-slate-500">KCB Bank · 1358024235</div>
+                      <div className="text-xs font-bold text-slate-900">Bank / PesaLink</div>
+                      <div className="text-[10px] text-slate-500">KCB Acc · {paybillAccount}</div>
+                    </div>
+                  </button>
+
+                  {/* 4. Debit / Credit Card (PDQ) */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOption('credit_card')}
+                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      selectedOption === 'credit_card'
+                        ? 'border-slate-900 bg-slate-50 ring-1 ring-slate-900'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <CreditCard className={`w-4 h-4 ${selectedOption === 'credit_card' ? 'text-slate-900' : 'text-slate-400'}`} />
+                      {selectedOption === 'credit_card' && <Check className="w-3.5 h-3.5 text-slate-900" />}
+                    </div>
+                    <div className="mt-2">
+                      <div className="text-xs font-bold text-slate-900">Card (Visa / MC)</div>
+                      <div className="text-[10px] text-slate-500">Wireless PDQ on delivery</div>
+                    </div>
+                  </button>
+
+                  {/* 5. M-Pesa Express STK Push (Optional) */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOption('mpesa_stk')}
+                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between sm:col-span-2 lg:col-span-2 ${
+                      selectedOption === 'mpesa_stk'
+                        ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-500'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Send className={`w-4 h-4 ${selectedOption === 'mpesa_stk' ? 'text-emerald-700' : 'text-slate-400'}`} />
+                      {selectedOption === 'mpesa_stk' && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </div>
+                    <div className="mt-2">
+                      <div className="text-xs font-bold text-slate-900">M-Pesa Express (STK Push Prompt)</div>
+                      <div className="text-[10px] text-slate-500">Auto phone popup (requires live KCB Buni / Daraja)</div>
                     </div>
                   </button>
                 </div>
+
+                {/* Contextual Inline Preview for Selected Payment Option */}
+                {selectedOption === 'mpesa_toolkit' && (
+                  <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-lg space-y-2.5 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="font-bold text-emerald-950">
+                        Pay directly via phone M-Pesa (*334# / SIM Toolkit) &rarr; Pay Bill
+                      </div>
+                      <a
+                        href="tel:*334%23"
+                        onClick={() => handleCopyDetail('account', paybillAccount)}
+                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition-colors no-underline"
+                      >
+                        <Phone className="w-3 h-3" />
+                        <span>Launch M-Pesa (*334#)</span>
+                      </a>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded border border-emerald-200">
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Paybill Number</span>
+                          <span className="font-mono font-bold text-slate-900">{paybillNumber}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDetail('paybill', paybillNumber)}
+                          className="px-2 py-1 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedField === 'paybill' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedField === 'paybill' ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between bg-white px-3 py-1.5 rounded border border-emerald-200">
+                        <div>
+                          <span className="text-[10px] text-slate-500 block">Account Number ({paybillAccountName})</span>
+                          <span className="font-mono font-bold text-slate-900">{paybillAccount}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyDetail('account', paybillAccount)}
+                          className="px-2 py-1 text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          {copiedField === 'account' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                          <span>{copiedField === 'account' ? 'Copied' : 'Copy'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-emerald-950 mb-1">
+                        Already sent payment? Enter M-Pesa SMS Code (or click below for guided *334# / SIM Toolkit screen):
+                      </label>
+                      <input
+                        type="text"
+                        value={manualMpesaCode}
+                        onChange={(e) => setManualMpesaCode(e.target.value.toUpperCase())}
+                        placeholder="Optional here — e.g. UAK84920XY"
+                        className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600 uppercase"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {selectedOption === 'bank_transfer' && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="font-bold text-slate-900 block">KCB Bank Kenya · PesaLink / RTGS / EFT</span>
+                      <span className="font-mono text-[11px] text-slate-600">
+                        Acc No: <strong>{paybillAccount}</strong> · {paybillAccountName}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyDetail('account', paybillAccount)}
+                      className="px-2.5 py-1 text-[11px] font-semibold bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      {copiedField === 'account' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedField === 'account' ? 'Copied Acc' : 'Copy Acc No'}</span>
+                    </button>
+                  </div>
+                )}
+
+                {selectedOption === 'credit_card' && (
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700">
+                    Pay securely using <strong>Visa or Mastercard</strong> on our wireless PDQ machine when our Nairobi courier delivers your parts, or at our Industrial Area counter.
+                  </div>
+                )}
               </div>
 
               {/* Special Instructions */}
@@ -1046,7 +1603,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
 
               {/* Submit Trigger */}
-              <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
                 <div className="text-xs text-slate-500">
                   Total Payable: <strong className="font-mono text-slate-900 text-sm">{formatCurrency(totalInc, currencySymbol)}</strong>
                 </div>
@@ -1064,7 +1621,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     disabled={isSubmitting}
                     className="px-5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-40 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-md"
                   >
-                    <span>{paymentMethod === 'Mobile Money' ? 'Pay with M-Pesa (STK Push)' : 'Proceed to Payment Confirmation'}</span>
+                    <span>
+                      {selectedOption === 'mpesa_toolkit'
+                        ? manualMpesaCode.trim().replace(/[^A-Za-z0-9]/g, '').length >= 8
+                          ? 'Confirm M-Pesa Code & Place Order'
+                          : `Pay via M-Pesa Paybill (${paybillNumber})`
+                        : selectedOption === 'mpesa_stk'
+                        ? 'Send M-Pesa STK Push'
+                        : selectedOption === 'cash_on_delivery'
+                        ? 'Continue with Cash on Delivery'
+                        : selectedOption === 'credit_card'
+                        ? 'Continue with Card (PDQ)'
+                        : 'Continue with Bank / PesaLink'}
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </button>
                 </div>

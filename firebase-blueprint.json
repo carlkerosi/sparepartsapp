@@ -187,6 +187,14 @@
         "timestamp": {
           "type": "string"
         },
+        "customerId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "customerEmail": {
+          "type": "string",
+          "maxLength": 120
+        },
         "customerName": {
           "type": "string",
           "maxLength": 120
@@ -200,6 +208,14 @@
           "maxLength": 250
         },
         "mpesaReceiptNumber": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "orderStatus": {
+          "type": "string",
+          "enum": ["CONFIRMED", "PACKING", "DISPATCHED", "DELIVERED"]
+        },
+        "statusUpdatedAt": {
           "type": "string",
           "maxLength": 60
         },
@@ -375,6 +391,11 @@
           "description": "Daraja Business ShortCode / Paybill / Till",
           "maxLength": 30
         },
+        "mpesaProvider": {
+          "type": "string",
+          "description": "M-Pesa API gateway provider",
+          "enum": ["kcb_buni", "daraja"]
+        },
         "mpesaEnvironment": {
           "type": "string",
           "enum": ["sandbox", "production"]
@@ -468,6 +489,10 @@
           "description": "Business Shortcode / Paybill",
           "maxLength": 30
         },
+        "provider": {
+          "type": "string",
+          "enum": ["kcb_buni", "daraja"]
+        },
         "environment": {
           "type": "string",
           "enum": ["sandbox", "production"]
@@ -477,6 +502,46 @@
         }
       },
       "required": ["service"]
+    },
+    "CustomerProfile": {
+      "title": "CustomerProfile",
+      "description": "Registered storefront client profile for saved delivery details and order tracking",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "defaultDeliveryAddress": {
+          "type": "string",
+          "maxLength": 250
+        },
+        "defaultVehicleRef": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "createdAt": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "updatedAt": {
+          "type": "string",
+          "maxLength": 60
+        }
+      },
+      "required": ["uid", "email", "displayName"]
     }
   },
   "firestore": {
@@ -507,6 +572,10 @@
     "/api_credentials/{credentialId}": {
       "schema": "ApiCredential",
       "description": "Secure server-side API integration secrets and keys locked from public client bundles"
+    },
+    "/customers/{customerId}": {
+      "schema": "CustomerProfile",
+      "description": "Storefront client profiles isolated by Firebase Auth UID for order tracking"
     }
   }
 }

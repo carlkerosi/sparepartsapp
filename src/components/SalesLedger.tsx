@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { SaleRecord } from '../types/inventory';
+import { SaleRecord, OrderStatus } from '../types/inventory';
 import { formatCurrency, calculateSalesMetrics } from '../utils/calculations';
 import { 
   Search, 
@@ -20,6 +20,7 @@ interface SalesLedgerProps {
   onViewReceipt: (sale: SaleRecord) => void;
   onExportCsv: () => void;
   onOpenNewSale: () => void;
+  onUpdateOrderStatus?: (saleId: string, status: OrderStatus) => void;
 }
 
 export const SalesLedger: React.FC<SalesLedgerProps> = ({
@@ -28,6 +29,7 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
   onViewReceipt,
   onExportCsv,
   onOpenNewSale,
+  onUpdateOrderStatus,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<'ALL' | 'TODAY' | 'WEEK' | 'MONTH'>('ALL');
@@ -222,13 +224,14 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
                 <th className="py-3 px-3 text-right">Total Inc ({currencySymbol})</th>
                 <th className="py-3 px-3 text-right">Gross Profit ({currencySymbol})</th>
                 <th className="py-3 px-3 text-center">Payment</th>
+                <th className="py-3 px-3 text-center">Order Status</th>
                 <th className="py-3 px-4 text-right">Receipt</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredSales.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-slate-500">
+                  <td colSpan={12} className="py-12 text-center text-slate-500">
                     <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="text-sm font-medium text-slate-700">No sales transactions found</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -334,6 +337,26 @@ export const SalesLedger: React.FC<SalesLedgerProps> = ({
                     {/* Payment Method */}
                     <td className="py-3 px-3 align-top text-center whitespace-nowrap text-slate-700">
                       {sale.paymentMethod}
+                    </td>
+
+                    {/* Order Fulfillment Status */}
+                    <td className="py-3 px-3 align-top text-center whitespace-nowrap">
+                      {onUpdateOrderStatus ? (
+                        <select
+                          value={sale.orderStatus || 'CONFIRMED'}
+                          onChange={(e) => onUpdateOrderStatus(sale.id, e.target.value as OrderStatus)}
+                          className="text-[11px] font-semibold px-2 py-1 rounded border border-slate-200 bg-slate-50 text-slate-800 cursor-pointer focus:outline-none focus:ring-1 focus:ring-slate-900"
+                        >
+                          <option value="CONFIRMED">Confirmed</option>
+                          <option value="PACKING">Packing</option>
+                          <option value="DISPATCHED">Dispatched</option>
+                          <option value="DELIVERED">Delivered</option>
+                        </select>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-slate-700">
+                          {sale.orderStatus || 'CONFIRMED'}
+                        </span>
+                      )}
                     </td>
 
                     {/* View Receipt Button */}

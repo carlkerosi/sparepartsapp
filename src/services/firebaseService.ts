@@ -1,7 +1,9 @@
 import {
   collection,
   doc,
+  getDoc,
   setDoc,
+  updateDoc,
   deleteDoc,
   onSnapshot,
   getDocs,
@@ -9,9 +11,18 @@ import {
   query,
   orderBy,
 } from 'firebase/firestore';
-import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  onAuthStateChanged,
+  signOut,
+  User as FirebaseUser,
+} from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Supplier, SparePart, SaleRecord, StockMovement, InventorySettings, AdminAccount } from '../types/inventory';
+import { Supplier, SparePart, SaleRecord, StockMovement, InventorySettings, AdminAccount, CustomerProfile, OrderStatus } from '../types/inventory';
 import { INITIAL_SUPPLIERS, INITIAL_PARTS, INITIAL_SALES, INITIAL_MOVEMENTS, DEFAULT_SETTINGS, INITIAL_ADMINS } from '../data/initialData';
 
 const COLLECTIONS = {
@@ -21,6 +32,7 @@ const COLLECTIONS = {
   MOVEMENTS: 'movements',
   SETTINGS: 'settings',
   ADMINS: 'admins',
+  CUSTOMERS: 'customers',
 };
 
 // 1. Subscribe to Suppliers (Real-time sync)
@@ -387,3 +399,162 @@ export async function signOutAdmin(): Promise<void> {
   }
 }
 
+// ==========================================
+// CUSTOMER AUTHENTICATION & ORDER TRACKING
+// ==========================================
+
+export async function getCustomerProfile(uid: string): Promise<CustomerProfile | null> {
+  const path = `${COLLECTIONS.CUSTOMERS}/${uid}`;
+  try {
+    const snap = await getDoc(doc(db, COLLECTIONS.CUSTOMERS, uid));
+    if (!snap.exists()) return null;
+    return snap.data() as CustomerProfile;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+  }
+}
+
+export async function saveCustomerProfile(profile: CustomerProfile): Promise<void> {
+  const path = `${COLLECTIONS.CUSTOMERS}/${profile.uid}`;
+  const cleanPayload: Record<string, string> = {
+    uid: profile.uid.slice(0, 128),
+    email: profile.email.slice(0, 120),
+    displayName: profile.displayName.slice(0, 100),
+    createdAt: profile.createdAt.slice(0, 60),
+    updatedAt: new Date().toISOString().slice(0, 60),
+  };
+  if (profile.phone?.trim()) cleanPayload.phone = profile.phone.trim().slice(0, 50);
+  if (profile.defaultDeliveryAddress?.trim()) {
+    cleanPayload.defaultDeliveryAddress = profile.defaultDeliveryAddress.trim().slice(0, 250);
+  }
+  if (profile.defaultVehicleRef?.trim()) {
+    cleanPayload.defaultVehicleRef = profile.defaultVehicleRef.trim().slice(0, 100);
+  }
+  try {
+    await setDoc(doc(db, COLLECTIONS.CUSTOMERS, profile.uid), cleanPayload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+async function upsertCustomerFromFirebaseUser(
+  user: FirebaseUser,
+  overrides?: Partial<Pick<CustomerProfile, 'displayName' | 'phone' | 'defaultDeliveryAddress' | 'defaultVehicleRef'>>
+): Promise<CustomerProfile> {
+  const now = new Date().toISOString();
+  let existing: CustomerProfile | null = null;
+  try {
+    existing = await getCustomerProfile(user.uid);
+  } catch {
+    existing = null;
+  }
+
+  const profile: CustomerProfile = {
+    uid: user.uid,
+    email: (user.email || existing?.email || 'client@panzerautoparts.co.ke').slice(0, 120),
+    displayName: (
+      overrides?.displayName?.trim() ||
+      user.displayName ||
+      existing?.displayName ||
+      user.email?.split('@')[0] ||
+      'Panzer Client'
+    ).slice(0, 100),
+    phone: overrides?.phone?.trim() || existing?.phone || undefined,
+    defaultDeliveryAddress: overrides?.defaultDeliveryAddress?.trim() || existing?.defaultDeliveryAddress || undefined,
+    defaultVehicleRef: overrides?.defaultVehicleRef?.trim() || existing?.defaultVehicleRef || undefined,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  };
+
+  await saveCustomerProfile(profile);
+  return profile;
+}
+
+export function subscribeCustomerAuthState(
+  onCustomerChange: (customer: CustomerProfile | null) => void
+): () => void {
+  return onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      onCustomerChange(null);
+      return;
+    }
+    try {
+      const existing = await getCustomerProfile(user.uid);
+      if (existing) {
+        onCustomerChange(existing);
+      } else {
+        const created = await upsertCustomerFromFirebaseUser(user);
+        onCustomerChange(created);
+      }
+    } catch {
+      onCustomerChange({
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || user.email?.split('@')[0] || 'Panzer Client',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  });
+}
+
+export async function signInCustomerWithGoogle(): Promise<CustomerProfile> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const result = await signInWithPopup(auth, provider);
+  return await upsertCustomerFromFirebaseUser(result.user);
+}
+
+export async function signUpCustomerWithEmail(
+  email: string,
+  password: string,
+  displayName: string,
+  phone?: string
+): Promise<CustomerProfile> {
+  const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  if (displayName.trim()) {
+    await updateProfile(result.user, { displayName: displayName.trim() });
+  }
+  return await upsertCustomerFromFirebaseUser(result.user, { displayName, phone });
+}
+
+export async function signInCustomerWithEmail(email: string, password: string): Promise<CustomerProfile> {
+  const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return await upsertCustomerFromFirebaseUser(result.user);
+}
+
+export async function signOutCustomer(): Promise<void> {
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.warn('Error signing out customer:', e);
+  }
+}
+
+export async function linkSaleToCustomer(
+  saleId: string,
+  customerId: string,
+  customerEmail: string
+): Promise<void> {
+  const path = `${COLLECTIONS.SALES}/${saleId}`;
+  try {
+    await updateDoc(doc(db, COLLECTIONS.SALES, saleId), {
+      customerId: customerId.slice(0, 128),
+      customerEmail: customerEmail.slice(0, 120),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function updateSaleOrderStatus(saleId: string, orderStatus: OrderStatus): Promise<void> {
+  const path = `${COLLECTIONS.SALES}/${saleId}`;
+  try {
+    await updateDoc(doc(db, COLLECTIONS.SALES, saleId), {
+      orderStatus,
+      statusUpdatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}

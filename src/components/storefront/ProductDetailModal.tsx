@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SparePart } from '../../types/inventory';
 import { formatCurrency } from '../../utils/calculations';
 import { X, ShoppingBag, Check, ShieldCheck, Truck, Package, Building2, Wrench } from 'lucide-react';
@@ -23,6 +23,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [quantity, setQuantity] = useState(1);
   const [imageError, setImageError] = useState(false);
   const [addedSuccess, setAddedSuccess] = useState(false);
+
+  useEffect(() => {
+    setImageError(false);
+    setQuantity(1);
+    setAddedSuccess(false);
+  }, [part?.id, part?.imageUrl]);
 
   if (!isOpen || !part) return null;
 
@@ -58,17 +64,17 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 max-h-[80vh] overflow-y-auto">
           {/* Left Column: Product Photo & Trust Badges */}
           <div className="md:col-span-6 space-y-4">
-            <div className="w-full aspect-4/3 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center relative">
+            <div className="w-full aspect-4/3 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center relative p-3">
               {part.imageUrl && !imageError ? (
                 <img
                   src={part.imageUrl}
                   alt={part.description}
                   referrerPolicy="no-referrer"
                   onError={() => setImageError(true)}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain"
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br from-slate-50 to-slate-200">
+                <div className="flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg w-full h-full">
                   <Package className="w-16 h-16 text-slate-400 mb-2 stroke-1" />
                   <span className="text-sm font-semibold text-slate-800">{part.category} Spare</span>
                   <span className="text-xs font-mono text-slate-500 mt-1">{part.partNumber}</span>

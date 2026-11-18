@@ -16,6 +16,7 @@ export const DEFAULT_SETTINGS: InventorySettings = {
   mpesaAccountNumber: '1358024235', // Account Number under Paybill 522522
   mpesaAccountName: 'PANZER AUTOPARTS LTD', // Account / Till Name
   mpesaPasskey: 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919', // Standard Sandbox passkey
+  mpesaProvider: 'kcb_buni',
   mpesaEnvironment: 'sandbox',
   businessEmail: 'orders@panzerautoparts.co.ke',
   adminAccessCode: '1234',

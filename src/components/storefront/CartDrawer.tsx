@@ -88,12 +88,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex gap-3 items-center"
                   >
                     {/* Thumbnail */}
-                    <div className="w-16 h-16 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-1">
                       {part.imageUrl ? (
                         <img
                           src={part.imageUrl}
                           alt={part.description}
-                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-contain"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
                           }}
