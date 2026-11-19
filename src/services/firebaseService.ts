@@ -509,13 +509,20 @@ export async function signUpCustomerWithEmail(
   email: string,
   password: string,
   displayName: string,
-  phone?: string
+  phone?: string,
+  defaultDeliveryAddress?: string,
+  defaultVehicleRef?: string
 ): Promise<CustomerProfile> {
   const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
   if (displayName.trim()) {
     await updateProfile(result.user, { displayName: displayName.trim() });
   }
-  return await upsertCustomerFromFirebaseUser(result.user, { displayName, phone });
+  return await upsertCustomerFromFirebaseUser(result.user, {
+    displayName,
+    phone,
+    defaultDeliveryAddress,
+    defaultVehicleRef,
+  });
 }
 
 export async function signInCustomerWithEmail(email: string, password: string): Promise<CustomerProfile> {

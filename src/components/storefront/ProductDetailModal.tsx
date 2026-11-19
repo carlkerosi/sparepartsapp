@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SparePart } from '../../types/inventory';
 import { formatCurrency } from '../../utils/calculations';
-import { X, ShoppingBag, Check, ShieldCheck, Truck, Package, Building2, Wrench } from 'lucide-react';
+import { X, ShoppingBag, Check, ShieldCheck, Truck, Package } from 'lucide-react';
 
 interface ProductDetailModalProps {
   part: SparePart | null;
@@ -43,25 +43,26 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border border-slate-200 w-full max-w-3xl max-h-[94vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+          <div className="flex items-center gap-2 text-xs text-slate-500 font-mono truncate">
             <span>{part.category}</span>
             <span aria-hidden="true">·</span>
-            <span>Part #{part.partNumber}</span>
+            <span className="truncate">Part #{part.partNumber}</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+            aria-label="Close specifications"
+            className="p-2 min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6 max-h-[80vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6 flex-1 overflow-y-auto">
           {/* Left Column: Product Photo & Trust Badges */}
           <div className="md:col-span-6 space-y-4">
             <div className="w-full aspect-4/3 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center relative p-3">
@@ -189,18 +190,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     type="button"
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
                     disabled={quantity <= 1}
-                    className="px-3 py-1 text-slate-600 hover:bg-slate-200 disabled:opacity-40 cursor-pointer font-bold"
+                    aria-label="Decrease quantity"
+                    className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-600 hover:bg-slate-200 disabled:opacity-40 cursor-pointer font-bold"
                   >
                     -
                   </button>
-                  <span className="px-3 py-1 text-xs font-mono font-bold text-slate-900 bg-white min-w-[32px] text-center">
+                  <span className="px-3 py-1 text-xs font-mono font-bold text-slate-900 bg-white min-w-[36px] text-center">
                     {quantity}
                   </span>
                   <button
                     type="button"
                     onClick={() => setQuantity(Math.min(remainingStock, quantity + 1))}
                     disabled={quantity >= remainingStock}
-                    className="px-3 py-1 text-slate-600 hover:bg-slate-200 disabled:opacity-40 cursor-pointer font-bold"
+                    aria-label="Increase quantity"
+                    className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-600 hover:bg-slate-200 disabled:opacity-40 cursor-pointer font-bold"
                   >
                     +
                   </button>
@@ -212,7 +215,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   type="button"
                   onClick={handleAddToCart}
                   disabled={isOutOfStock || remainingStock <= 0}
-                  className={`flex-1 py-2.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
+                  className={`flex-1 min-h-[44px] px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
                     isOutOfStock || remainingStock <= 0
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                       : addedSuccess
@@ -228,7 +231,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   ) : (
                     <>
                       <ShoppingBag className="w-4 h-4" />
-                      <span>Add to Shopping Cart ({formatCurrency(part.retailPriceInc * quantity, currencySymbol)})</span>
+                      <span>Add to Cart ({formatCurrency(part.retailPriceInc * quantity, currencySymbol)})</span>
                     </>
                   )}
                 </button>

@@ -78,7 +78,7 @@ export async function testConnection(): Promise<boolean> {
 export async function checkFirebaseConnection(): Promise<FirebaseConnectionStatus> {
   const start = performance.now();
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    await getDocFromServer(doc(db, 'test', 'connection_probe'));
     const latencyMs = Math.round(performance.now() - start);
     return {
       connected: true,

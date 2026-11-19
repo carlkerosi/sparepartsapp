@@ -15,6 +15,8 @@ import {
   Package,
   ArrowRight,
   RotateCw,
+  MapPin,
+  Car,
 } from 'lucide-react';
 
 interface CustomerAuthModalProps {
@@ -36,6 +38,8 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [defaultDeliveryAddress, setDefaultDeliveryAddress] = useState('');
+  const [defaultVehicleRef, setDefaultVehicleRef] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +107,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
           setIsLoading(false);
           return;
         }
-        const profile = await signUpCustomerWithEmail(email, password, displayName, phone);
+        const profile = await signUpCustomerWithEmail(
+          email,
+          password,
+          displayName,
+          phone,
+          defaultDeliveryAddress,
+          defaultVehicleRef
+        );
         onAuthenticated(profile);
         onClose();
       } else {
@@ -119,33 +130,34 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl shadow-2xl border border-slate-200 w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-slate-900 text-white rounded-lg">
+        <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-slate-900 text-white rounded-lg shrink-0">
               <Package className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900 truncate">
                 {mode === 'signup' ? 'Create Client Account' : 'Client Sign In'}
               </h3>
-              <p className="text-[11px] text-slate-500">
-                Save details & track your spare parts orders live
+              <p className="text-[11px] text-slate-500 truncate">
+                Saved securely in Firebase for fast checkout &amp; tracking
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
+            aria-label="Close"
+            className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1">
           {contextMessage && (
             <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2">
               <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
@@ -158,9 +170,9 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isLoading}
-            className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-2.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+            className="w-full min-h-[44px] py-2.5 px-4 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-lg text-xs font-semibold flex items-center justify-center gap-2.5 shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
               <path
                 fill="#4285F4"
                 d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
@@ -181,7 +193,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <span>Continue with Google</span>
           </button>
 
-          <div className="relative flex items-center py-1">
+          <div className="relative flex items-center py-0.5">
             <div className="flex-grow border-t border-slate-200" />
             <span className="shrink mx-3 text-[11px] uppercase tracking-wider text-slate-400 font-semibold">
               Or with Email
@@ -197,7 +209,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 setMode('signin');
                 setError(null);
               }}
-              className={`py-1.5 rounded-md transition-colors cursor-pointer ${
+              className={`min-h-[38px] py-1.5 rounded-md transition-colors cursor-pointer ${
                 mode === 'signin'
                   ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-500 hover:text-slate-900'
@@ -211,7 +223,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 setMode('signup');
                 setError(null);
               }}
-              className={`py-1.5 rounded-md transition-colors cursor-pointer ${
+              className={`min-h-[38px] py-1.5 rounded-md transition-colors cursor-pointer ${
                 mode === 'signup'
                   ? 'bg-white text-slate-900 shadow-2xs'
                   : 'text-slate-500 hover:text-slate-900'
@@ -243,14 +255,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="e.g. David Mwangi / Karen Motors"
-                      className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                      className="w-full text-xs pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
                     />
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Mobile / M-Pesa Phone (Optional)
+                    Mobile / M-Pesa Phone
                   </label>
                   <div className="relative">
                     <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -259,8 +271,41 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="07XX XXX XXX"
-                      className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white font-mono"
+                      className="w-full text-xs pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white font-mono"
                     />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Delivery Location
+                    </label>
+                    <div className="relative">
+                      <MapPin className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={defaultDeliveryAddress}
+                        onChange={(e) => setDefaultDeliveryAddress(e.target.value)}
+                        placeholder="e.g. Karen, Nairobi"
+                        className="w-full text-xs pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Vehicle / Reg #
+                    </label>
+                    <div className="relative">
+                      <Car className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={defaultVehicleRef}
+                        onChange={(e) => setDefaultVehicleRef(e.target.value)}
+                        placeholder="e.g. L405 / KDA 482B"
+                        className="w-full text-xs pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
               </>
@@ -278,7 +323,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                  className="w-full text-xs pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
                 />
               </div>
             </div>
@@ -296,7 +341,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder={mode === 'signup' ? 'At least 6 characters' : 'Enter your password'}
-                  className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                  className="w-full text-xs pl-8 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
                 />
               </div>
             </div>
@@ -304,7 +349,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              className="w-full min-h-[44px] py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
             >
               {isLoading ? (
                 <>
@@ -313,7 +358,7 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
                 </>
               ) : (
                 <>
-                  <span>{mode === 'signup' ? 'Create Account & Continue' : 'Sign In'}</span>
+                  <span>{mode === 'signup' ? 'Create Account & Save to Cloud' : 'Sign In'}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </>
               )}

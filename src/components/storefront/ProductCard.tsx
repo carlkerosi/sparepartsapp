@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SparePart } from '../../types/inventory';
 import { formatCurrency } from '../../utils/calculations';
-import { ShoppingBag, Eye, Check, AlertTriangle, Package, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, Eye, Check, Package } from 'lucide-react';
 
 interface ProductCardProps {
   part: SparePart;
@@ -165,7 +165,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <button
             onClick={handleAdd}
             disabled={isOutOfStock || !isAvailable}
-            className={`px-3 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+            className={`px-3.5 min-h-[40px] rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
               isOutOfStock
                 ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 : addedAnim

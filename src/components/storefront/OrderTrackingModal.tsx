@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { CustomerProfile, OrderStatus, SaleRecord } from '../../types/inventory';
 import { formatCurrency } from '../../utils/calculations';
 import {
@@ -15,6 +15,10 @@ import {
   MapPin,
   Car,
   ShieldCheck,
+  Pencil,
+  Check,
+  Phone,
+  User,
 } from 'lucide-react';
 
 interface OrderTrackingModalProps {
@@ -26,6 +30,7 @@ interface OrderTrackingModalProps {
   onOpenAuthModal: (mode: 'signin' | 'signup') => void;
   onSignOut: () => void;
   onViewReceipt: (sale: SaleRecord) => void;
+  onUpdateCustomerProfile?: (updated: CustomerProfile) => Promise<void>;
 }
 
 const STEPS: { key: OrderStatus; label: string; sub: string }[] = [
@@ -49,11 +54,30 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   onOpenAuthModal,
   onSignOut,
   onViewReceipt,
+  onUpdateCustomerProfile,
 }) => {
   const [guestInvoice, setGuestInvoice] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [matchedGuestSale, setMatchedGuestSale] = useState<SaleRecord | null>(null);
+
+  // Editable saved Firebase client account details
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editVehicle, setEditVehicle] = useState('');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveMsg, setProfileSaveMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (customer) {
+      setEditName(customer.displayName || '');
+      setEditPhone(customer.phone || '');
+      setEditAddress(customer.defaultDeliveryAddress || '');
+      setEditVehicle(customer.defaultVehicleRef || '');
+    }
+  }, [customer, isOpen]);
 
   const customerOrders = useMemo(() => {
     if (!customer) return [];
@@ -69,6 +93,28 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   }, [customer, sales]);
 
   if (!isOpen) return null;
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customer || !onUpdateCustomerProfile) return;
+    setIsSavingProfile(true);
+    setProfileSaveMsg(null);
+    try {
+      await onUpdateCustomerProfile({
+        ...customer,
+        displayName: editName.trim() || customer.displayName,
+        phone: editPhone.trim() || undefined,
+        defaultDeliveryAddress: editAddress.trim() || undefined,
+        defaultVehicleRef: editVehicle.trim() || undefined,
+        updatedAt: new Date().toISOString(),
+      });
+      setIsEditingProfile(false);
+      setProfileSaveMsg('Account details saved to Firebase.');
+      setTimeout(() => setProfileSaveMsg(null), 2500);
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const handleGuestLookup = (e: React.FormEvent) => {
     e.preventDefault();
@@ -137,7 +183,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
             <button
               type="button"
               onClick={() => onViewReceipt(sale)}
-              className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg inline-flex items-center gap-1 cursor-pointer transition-colors"
+              className="min-h-[38px] px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg inline-flex items-center gap-1 cursor-pointer transition-colors"
             >
               <Receipt className="w-3.5 h-3.5" />
               <span>Receipt</span>
@@ -237,18 +283,18 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-slate-50 rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[88vh] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
+      <div className="bg-slate-50 rounded-t-2xl sm:rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[92vh] sm:max-h-[88vh] flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-slate-900 text-white rounded-lg">
+        <div className="px-5 sm:px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-slate-900 text-white rounded-lg shrink-0">
               <Truck className="w-4 h-4" />
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Order Tracking & History</h3>
-              <p className="text-[11px] text-slate-500">
-                Follow dispatch progress and download tax receipts anytime
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold text-slate-900 truncate">Client Account &amp; Order Tracking</h3>
+              <p className="text-[11px] text-slate-500 truncate">
+                Saved delivery profile, dispatch progress &amp; tax receipts
               </p>
             </div>
           </div>
@@ -256,39 +302,134 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+            aria-label="Close"
+            className="min-w-[40px] min-h-[40px] flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-5 flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
           {customer ? (
             <>
-              {/* Signed-In Profile Banner */}
-              <div className="p-4 bg-white border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
-                    {customer.displayName.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-bold text-slate-900">{customer.displayName}</span>
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              {/* Signed-In Profile Banner & Firebase Account Editor */}
+              <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm shrink-0">
+                      {customer.displayName.charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-[11px] text-slate-500 font-mono">{customer.email}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-900 truncate">{customer.displayName}</span>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-mono block truncate">{customer.email}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {onUpdateCustomerProfile && (
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingProfile((v) => !v)}
+                        className="min-h-[38px] px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        <span>{isEditingProfile ? 'Cancel' : 'Edit Details'}</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={onSignOut}
+                      className="min-h-[38px] px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Sign Out</span>
+                    </button>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={onSignOut}
-                  className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg inline-flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>Sign Out</span>
-                </button>
+                {profileSaveMsg && (
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-lg flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{profileSaveMsg}</span>
+                  </div>
+                )}
+
+                {isEditingProfile ? (
+                  <form onSubmit={handleSaveProfile} className="pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Full Name / Workshop</label>
+                      <div className="relative">
+                        <User className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          required
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full pl-8 pr-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Phone / M-Pesa Number</label>
+                      <div className="relative">
+                        <Phone className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="tel"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          placeholder="07XX XXX XXX"
+                          className="w-full pl-8 pr-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-1 focus:ring-slate-900"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Default Delivery Address</label>
+                      <div className="relative">
+                        <MapPin className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={editAddress}
+                          onChange={(e) => setEditAddress(e.target.value)}
+                          placeholder="e.g. Karen Workshop, Nairobi"
+                          className="w-full pl-8 pr-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">Vehicle Model / Reg #</label>
+                      <div className="relative">
+                        <Car className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={editVehicle}
+                          onChange={(e) => setEditVehicle(e.target.value)}
+                          placeholder="e.g. Range Rover Sport KDA 482B"
+                          className="w-full pl-8 pr-2.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-slate-900"
+                        />
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2 flex justify-end pt-1">
+                      <button
+                        type="submit"
+                        disabled={isSavingProfile}
+                        className="min-h-[40px] px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{isSavingProfile ? 'Saving to Firebase...' : 'Save Account Details'}</span>
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="pt-2.5 border-t border-slate-100 flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] text-slate-600">
+                    <span>Phone: <strong className="font-mono text-slate-800">{customer.phone || 'Not set'}</strong></span>
+                    <span>Address: <strong className="text-slate-800">{customer.defaultDeliveryAddress || 'Not set'}</strong></span>
+                    <span>Vehicle: <strong className="text-slate-800">{customer.defaultVehicleRef || 'Not set'}</strong></span>
+                  </div>
+                )}
               </div>
 
               {/* Orders List */}
@@ -312,18 +453,18 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
           ) : (
             <>
               {/* Account Prompt (Optional Login / Sign Up) */}
-              <div className="p-5 bg-white border border-slate-200 rounded-xl space-y-3">
+              <div className="p-4 sm:p-5 bg-white border border-slate-200 rounded-xl space-y-3">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">Sign In or Create Account</h4>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Sign in to automatically track all your spare part orders, delivery updates, and saved vehicles in one place.
+                    Sign in to automatically track all your spare part orders, delivery updates, and saved vehicles in Firebase.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => onOpenAuthModal('signin')}
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                    className="min-h-[42px] px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <LogIn className="w-3.5 h-3.5" />
                     <span>Sign In</span>
@@ -331,7 +472,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenAuthModal('signup')}
-                    className="px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                    className="min-h-[42px] px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Create Account</span>
@@ -340,7 +481,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
               </div>
 
               {/* Guest Invoice Lookup (No login required!) */}
-              <div className="p-5 bg-white border border-slate-200 rounded-xl space-y-3">
+              <div className="p-4 sm:p-5 bg-white border border-slate-200 rounded-xl space-y-3">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">Guest Order Lookup</h4>
                   <p className="text-xs text-slate-500 mt-0.5">
@@ -354,18 +495,18 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                     value={guestInvoice}
                     onChange={(e) => setGuestInvoice(e.target.value.toUpperCase())}
                     placeholder="Invoice # (e.g. INV-2026-1001)"
-                    className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono uppercase focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                    className="min-h-[42px] text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono uppercase focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
                   />
                   <input
                     type="tel"
                     value={guestPhone}
                     onChange={(e) => setGuestPhone(e.target.value)}
                     placeholder="Phone (e.g. 0722849204)"
-                    className="text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
+                    className="min-h-[42px] text-xs px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono focus:outline-none focus:ring-1 focus:ring-slate-900 focus:bg-white"
                   />
                   <button
                     type="submit"
-                    className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                    className="min-h-[42px] px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>Find Order</span>

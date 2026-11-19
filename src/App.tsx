@@ -42,7 +42,7 @@ import {
   signOutCustomer,
   clearAllInventoryFromFirestore
 } from './services/firebaseService';
-import { calculateInventoryMetrics, calculateSalesMetrics, calculateIncFromEx } from './utils/calculations';
+import { calculateInventoryMetrics, calculateSalesMetrics, calculateIncFromEx, formatCurrency } from './utils/calculations';
 import { Header, ActiveTab } from './components/Header';
 import { StatSummaryStrip } from './components/StatSummaryStrip';
 import { InventoryTable } from './components/InventoryTable';
@@ -70,7 +70,7 @@ import { CheckoutModal } from './components/storefront/CheckoutModal';
 import { AdminAccessModal } from './components/storefront/AdminAccessModal';
 import { CustomerAuthModal } from './components/storefront/CustomerAuthModal';
 import { OrderTrackingModal } from './components/storefront/OrderTrackingModal';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, ShoppingBag } from 'lucide-react';
 
 export default function App() {
   // Primary database state (initialized from local storage, synced with Firebase in real time)
@@ -510,6 +510,15 @@ export default function App() {
     setCurrentCustomer(null);
     showToast('Signed out of your client account.');
   }, [showToast]);
+
+  const handleUpdateCustomerProfile = useCallback(
+    async (updated: CustomerProfile) => {
+      setCurrentCustomer(updated);
+      await saveCustomerProfile(updated);
+      showToast('Account details saved to Firebase.');
+    },
+    [showToast]
+  );
 
   const handleUpdateOrderStatus = useCallback(
     async (saleId: string, status: OrderStatus) => {
@@ -1072,7 +1081,7 @@ export default function App() {
           />
 
           {/* Storefront Catalog Grid */}
-          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
+          <main className={`flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 ${cartItemCount > 0 ? 'pb-20 sm:pb-6' : 'pb-6'}`}>
             <StorefrontCatalog
               parts={parts}
               currencySymbol={settings.currencySymbol}
@@ -1091,6 +1100,25 @@ export default function App() {
             settings={settings}
             onOpenAdmin={() => setIsAdminAccessModalOpen(true)}
           />
+
+          {/* Mobile Floating Cart Bar */}
+          {cartItemCount > 0 && (
+            <div className="sm:hidden fixed bottom-3 left-3 right-3 z-30">
+              <button
+                type="button"
+                onClick={() => setIsCartOpen(true)}
+                className="w-full min-h-[48px] px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-xl border border-slate-700 flex items-center justify-between text-xs font-semibold cursor-pointer"
+              >
+                <span className="flex items-center gap-2">
+                  <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                  <span>{cartItemCount} item{cartItemCount === 1 ? '' : 's'} in cart</span>
+                </span>
+                <span className="font-mono font-bold text-emerald-300">
+                  {formatCurrency(cartTotalAmount, settings.currencySymbol)} · View Cart
+                </span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* ========================================================================= */
@@ -1362,6 +1390,7 @@ export default function App() {
         currencySymbol={settings.currencySymbol}
         onOpenAuthModal={handleOpenCustomerAuth}
         onSignOut={handleCustomerSignOut}
+        onUpdateCustomerProfile={handleUpdateCustomerProfile}
         onViewReceipt={(sale) => {
           setActiveReceiptSale(sale);
           setIsReceiptModalOpen(true);
