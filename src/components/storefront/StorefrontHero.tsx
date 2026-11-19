@@ -71,7 +71,7 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
               <span aria-hidden="true">·</span>
               <span>Range Rover Specialist</span>
               <span aria-hidden="true">·</span>
-              <span>Landed Cost in KSh</span>
+              <span>Transparent KSh Pricing</span>
               <span aria-hidden="true">·</span>
               <span>M-Pesa Paybill 522522</span>
             </div>
@@ -95,7 +95,7 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
               </button>
               <div className="text-xs text-slate-400 flex items-center gap-2 font-mono">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Instant M-Pesa STK Prompt · Paybill 522522</span>
+                <span>Lipa na M-Pesa · Paybill 522522 · Acc 1358024235</span>
               </div>
             </div>
           </div>

@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { SparePart } from '../../types/inventory';
 import { ProductCard } from './ProductCard';
-import { Search, ArrowUpDown, X, Package } from 'lucide-react';
+import { Search, ArrowUpDown, X, Package, Loader2 } from 'lucide-react';
 
 interface StorefrontCatalogProps {
   parts: SparePart[];
+  isLoading?: boolean;
   currencySymbol: string;
   selectedCategory: string;
   onSelectCategory: (cat: string) => void;
@@ -17,6 +18,7 @@ interface StorefrontCatalogProps {
 
 export const StorefrontCatalog: React.FC<StorefrontCatalogProps> = ({
   parts,
+  isLoading = false,
   currencySymbol,
   selectedCategory,
   onSelectCategory,
@@ -139,13 +141,47 @@ export const StorefrontCatalog: React.FC<StorefrontCatalogProps> = ({
         </div>
       </div>
 
-      {/* Product Grid */}
-      {parts.length === 0 ? (
+      {/* Product Grid / Loading State */}
+      {isLoading && parts.length === 0 ? (
+        <div className="space-y-5">
+          <div className="flex items-center justify-center gap-2.5 py-2 text-xs sm:text-sm font-medium text-slate-600">
+            <Loader2 className="w-4 h-4 animate-spin text-slate-900" />
+            <span>Loading genuine spare parts catalogue...</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs flex flex-col animate-pulse"
+              >
+                <div className="w-full aspect-4/3 bg-slate-100 border-b border-slate-100 relative">
+                  <div className="absolute top-2.5 right-2.5 h-5 w-20 bg-slate-200/80 rounded" />
+                </div>
+                <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="h-3 w-28 bg-slate-200 rounded" />
+                    <div className="h-4 w-full bg-slate-200 rounded" />
+                    <div className="h-4 w-3/4 bg-slate-100 rounded" />
+                    <div className="h-3 w-2/3 bg-slate-100 rounded" />
+                  </div>
+                  <div className="pt-3 border-t border-slate-100 flex items-end justify-between gap-2">
+                    <div className="space-y-1.5">
+                      <div className="h-2.5 w-16 bg-slate-200 rounded" />
+                      <div className="h-5 w-24 bg-slate-200 rounded" />
+                    </div>
+                    <div className="h-10 w-20 bg-slate-200 rounded-lg" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : parts.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-8 sm:p-12 text-center max-w-md mx-auto my-8">
           <Package className="w-12 h-12 text-slate-300 mx-auto mb-3 stroke-1" />
-          <h3 className="text-base font-bold text-slate-900">Inventory Catalogue Ready</h3>
+          <h3 className="text-base font-bold text-slate-900">Catalogue Updating Soon</h3>
           <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-            All demo records have been cleared. You can now add your genuine spare parts and stock levels through the Admin Inventory portal.
+            New genuine Range Rover spare parts are being added to our Nairobi hub inventory. Please check back shortly or contact our parts desk for direct assistance.
           </p>
         </div>
       ) : filteredParts.length === 0 ? (

@@ -116,32 +116,24 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 {part.description}
               </h2>
 
-              {/* Price & Landed Cost Breakdown Display */}
-              <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-                <div className="flex items-baseline justify-between">
+              {/* Customer Retail Price Display */}
+              <div className="mt-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5">
+                <div className="flex items-baseline justify-between gap-2">
                   <div>
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Selling Price</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">
+                      Retail Price (VAT Inclusive)
+                    </span>
                     <div className="text-2xl font-black text-slate-900 font-mono tabular-nums">
                       {formatCurrency(part.retailPriceInc, currencySymbol)}
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 block">Total Landed Cost</span>
-                    <div className="text-lg font-bold text-emerald-800 font-mono tabular-nums">
-                      {formatCurrency(part.unitCostLanded, currencySymbol)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200 grid grid-cols-2 gap-2 text-[11px] text-slate-600 font-mono">
-                  <div>
-                    <span className="text-slate-400">FOB Port Sourcing:</span> ${part.unitCostFobUsd.toFixed(2)} USD
-                  </div>
-                  <div className="text-right">
-                    <span className="text-slate-400">Conversion Baseline:</span> 1 USD = 130 KSh
-                  </div>
-                  <div className="col-span-2 text-[10px] text-slate-500 italic">
-                    * Landed Cost includes FOB sourcing + Air/Sea Freight + KRA Import Duty (25%) + Railway Development Levy (2%) + Port & ICD handling.
+                    <span className="text-[11px] font-semibold text-emerald-700 block">
+                      {isOutOfStock ? 'Restocking Soon' : 'In Stock · Nairobi Hub'}
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono block">
+                      Ex-VAT: {formatCurrency(part.retailPriceEx, currencySymbol)}
+                    </span>
                   </div>
                 </div>
               </div>

@@ -8,6 +8,7 @@ interface InvoiceReceiptModalProps {
   settings: InventorySettings;
   isOpen: boolean;
   onClose: () => void;
+  allowProfitToggle?: boolean;
 }
 
 export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
@@ -15,10 +16,13 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
   settings,
   isOpen,
   onClose,
+  allowProfitToggle = false,
 }) => {
   const [showProfitMargin, setShowProfitMargin] = useState(false);
 
   if (!isOpen || !sale) return null;
+
+  const canShowProfit = allowProfitToggle && showProfitMargin;
 
   const handlePrint = () => {
     window.print();
@@ -38,23 +42,25 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowProfitMargin(!showProfitMargin)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-md cursor-pointer transition-colors"
-              title="Toggle Merchant Profit & Cost Details"
-            >
-              {showProfitMargin ? (
-                <>
-                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Customer View</span>
-                </>
-              ) : (
-                <>
-                  <Eye className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Manager View</span>
-                </>
-              )}
-            </button>
+            {allowProfitToggle && (
+              <button
+                onClick={() => setShowProfitMargin(!showProfitMargin)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-md cursor-pointer transition-colors"
+                title="Toggle Merchant Profit & Cost Details"
+              >
+                {showProfitMargin ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Customer View</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Manager View</span>
+                  </>
+                )}
+              </button>
+            )}
 
             <button
               onClick={handlePrint}
@@ -180,7 +186,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
                 <th className="py-2 px-2 text-right">Price (Ex)</th>
                 <th className="py-2 px-2 text-right">Price (Inc)</th>
                 <th className="py-2 px-2 text-right">Total (Inc)</th>
-                {showProfitMargin && (
+                {canShowProfit && (
                   <th className="py-2 px-2 text-right text-emerald-700">Margin</th>
                 )}
               </tr>
@@ -206,7 +212,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
                   <td className="py-2.5 px-2 text-right font-mono tabular-nums font-bold text-slate-900">
                     {formatCurrency(item.lineTotalInc, settings.currencySymbol)}
                   </td>
-                  {showProfitMargin && (
+                  {canShowProfit && (
                     <td className="py-2.5 px-2 text-right font-mono tabular-nums text-emerald-700">
                       +{formatCurrency(item.grossProfit, settings.currencySymbol)} ({item.marginPercent}%)
                     </td>
@@ -250,7 +256,7 @@ export const InvoiceReceiptModal: React.FC<InvoiceReceiptModalProps> = ({
                 </span>
               </div>
 
-              {showProfitMargin && (
+              {canShowProfit && (
                 <div className="mt-3 pt-2 border-t border-dashed border-emerald-200 bg-emerald-50/50 p-2 rounded text-left">
                   <span className="text-[11px] font-semibold text-emerald-900 block">Manager COGS Breakdown:</span>
                   <div className="flex justify-between text-emerald-800 text-xs mt-0.5">

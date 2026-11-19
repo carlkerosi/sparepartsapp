@@ -314,7 +314,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
                   </p>
                   <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
                     {parts.length === 0
-                      ? 'All demo records have been cleared. Click below to add your first actual spare part with OEM code and landed cost.'
+                      ? 'No spare parts have been added yet. Click below to add your first spare part with OEM code and landed cost.'
                       : 'Try adjusting your search query, status filters, or add a new part.'}
                   </p>
                   <button

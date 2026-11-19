@@ -76,6 +76,7 @@ export default function App() {
   // Primary database state (initialized from local storage, synced with Firebase in real time)
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => loadSuppliers());
   const [parts, setParts] = useState<SparePart[]>(() => loadParts());
+  const [isPartsLoading, setIsPartsLoading] = useState<boolean>(() => loadParts().length === 0);
   const [sales, setSales] = useState<SaleRecord[]>(() => loadSales());
   const [movements, setMovements] = useState<StockMovement[]>(() => loadMovements());
   const [settings, setSettings] = useState<InventorySettings>(() => loadSettings());
@@ -168,12 +169,22 @@ export default function App() {
       (err) => console.warn('Using local suppliers cache:', err)
     );
 
+    const loadingFallbackTimer = setTimeout(() => {
+      setIsPartsLoading(false);
+    }, 6000);
+
     const unsubParts = subscribeParts(
       (newParts) => {
+        clearTimeout(loadingFallbackTimer);
         setParts(newParts);
         saveParts(newParts);
+        setIsPartsLoading(false);
       },
-      (err) => console.warn('Using local parts cache:', err)
+      (err) => {
+        clearTimeout(loadingFallbackTimer);
+        console.warn('Using local parts cache:', err);
+        setIsPartsLoading(false);
+      }
     );
 
     const unsubSales = subscribeSales(
@@ -217,6 +228,7 @@ export default function App() {
     });
 
     return () => {
+      clearTimeout(loadingFallbackTimer);
       unsubSuppliers();
       unsubParts();
       unsubSales();
@@ -1084,6 +1096,7 @@ export default function App() {
           <main className={`flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 ${cartItemCount > 0 ? 'pb-20 sm:pb-6' : 'pb-6'}`}>
             <StorefrontCatalog
               parts={parts}
+              isLoading={isPartsLoading}
               currencySymbol={settings.currencySymbol}
               selectedCategory={storefrontCategory}
               onSelectCategory={setStorefrontCategory}
@@ -1472,6 +1485,7 @@ export default function App() {
         sale={activeReceiptSale}
         settings={settings}
         isOpen={isReceiptModalOpen}
+        allowProfitToggle={viewMode === 'admin'}
         onClose={() => {
           setIsReceiptModalOpen(false);
           setActiveReceiptSale(null);

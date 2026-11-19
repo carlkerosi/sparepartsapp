@@ -27,7 +27,7 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
               </div>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Panzer Autoparts Limited is a registered Kenyan automotive company operating from Enterprise Road, Industrial Area, Nairobi. We specialize strictly in genuine OEM and certified Tier-1 replacement parts for Range Rover (Vogue, Sport, Velar, and Evoque), with transparent landed costing in Kenyan Shillings (KSh) and rapid dispatch to Nairobi workshops.
+              Panzer Autoparts Limited is a registered Kenyan automotive company operating from Enterprise Road, Industrial Area, Nairobi. We specialize strictly in genuine OEM and certified Tier-1 replacement parts for Range Rover (Vogue, Sport, Velar, and Evoque), with transparent pricing in Kenyan Shillings (KSh) and rapid dispatch to Nairobi workshops.
             </p>
           </div>
 
@@ -88,7 +88,7 @@ export const StorefrontFooter: React.FC<StorefrontFooterProps> = ({
           <div className="space-y-2">
             <h4 className="text-white font-semibold text-xs tracking-wider uppercase">Staff & Inventory Portal</h4>
             <p className="text-xs text-slate-400 leading-relaxed">
-              Authorized warehouse personnel can access back-office Range Rover inventory, landed cost computations, and sales ledgers.
+              Authorized warehouse personnel can access back-office Range Rover inventory, stock valuations, and sales ledgers.
             </p>
             <button
               onClick={onOpenAdmin}
